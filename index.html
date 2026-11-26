@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1227">
+<meta name="agate-version" content="2026.11.26-1236">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -236,6 +236,17 @@ table.mkt .pct { font-weight: 500; flex: none; }
 .racetop { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px 40px; align-items: start; }
 .racetop .standings { margin-top: 0; }
 @media (max-width: 900px) { .racetop { grid-template-columns: minmax(0, 1fr); } .racetop .trackbig { max-width: 300px; } }
+.racesessions { display: grid; gap: 30px; }
+.withslope { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: start; }
+@media (max-width: 760px) { .withslope { grid-template-columns: minmax(0, 1fr); } }
+table.f1t { width: auto; min-width: min(100%, 420px); }
+table.f1t td.tmn { color: var(--gray); font-style: italic; padding-right: 18px; }
+table.f1t td.r .sw, .f1 li .sw { height: 13px; }
+.slope { margin: 0; }
+.slope svg { display: block; max-width: 100%; height: auto; }
+.slope .sl-h { font: italic 13px var(--serif); fill: var(--gray); }
+.slope .sl-l { font: 12px var(--serif); fill: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
+.slope figcaption { font-size: 13px; color: var(--gray); font-style: italic; margin-top: 2px; }
 .standings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; align-items: start; margin-top: 18px; }
 @media (max-width: 700px) { .standings { grid-template-columns: minmax(0, 1fr); } }
 .standings h3 { margin: 0 0 4px; font-weight: 400; font-style: italic; font-size: 19px; }
@@ -899,7 +910,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     try { circuits = (await (await fetch("circuits.json")).json()).circuits || []; } catch (e) { circuits = []; }
     render();
   }
-  var STOP = { circuit: 1, international: 1, the: 1, grand: 1, prix: 1, autodromo: 1, racing: 1, course: 1, street: 1, strip: 1, nazionale: 1, internazionale: 1, del: 1 };
+  var STOP = { team: 1, f1: 1, circuit: 1, international: 1, the: 1, grand: 1, prix: 1, autodromo: 1, racing: 1, course: 1, street: 1, strip: 1, nazionale: 1, internazionale: 1, del: 1 };
   function words(x) { return norm(x).trim().split(" ").filter(function (w) { return w.length > 2 && !STOP[w]; }); }
   function findCircuit(c) {
     if (!circuits || !c) return null;
@@ -952,6 +963,108 @@ table.mkt .pct { font-weight: 500; flex: none; }
   function standingsBlock(max) {
     if (!standings || standings.error) return "";
     return h("div", { class: "standings" }, [standingsTable("Drivers' championship", standings.drivers, max), standingsTable("Constructors' championship", standings.teams, max)]);
+  }
+
+  // ---- F1 results from Jolpica (the Ergast successor) ---------------------
+  // ESPN's F1 results carry only the driver and the order. Jolpica adds the
+  // team, the grid slot, the gap, why a car stopped, and the points.
+  var JOL = "https://api.jolpi.ca/ergast/f1/", jol = {}, jolBusy = {}, gridMap = null;
+  function famKey(name) { return norm(String(name || "").split(" ").slice(-1)[0]).trim(); }
+  async function loadGridMap() {
+    if (gridMap || jolBusy.grid) return;
+    jolBusy.grid = 1;
+    try {
+      var d = await getJSON(JOL + "current/last/results.json"), map = {};
+      ((((d.MRData || {}).RaceTable || {}).Races || [])[0] || {}).Results.forEach(function (r) {
+        map[famKey(r.Driver.familyName)] = { team: r.Constructor.name, code: r.Driver.code };
+      });
+      gridMap = map; render();
+    } catch (e) { gridMap = {}; }
+  }
+  async function loadJol(ev) {
+    var have = jol[ev.id];
+    if (jolBusy[ev.id] || (have && (have.race.length || Date.now() - have.at < 600e3))) return;
+    jolBusy[ev.id] = 1;
+    var out = { at: Date.now(), race: [], qual: [], sprint: [] };
+    try {
+      var rs = (ev.sessions || []).filter(function (x) { return /^race$/i.test(x.name); }).slice(-1)[0] || { date: ev.date };
+      var yr = new Date(rs.date || ev.date).getUTCFullYear();
+      var sch = await getJSON(JOL + yr + ".json");
+      var r = ((sch.MRData.RaceTable || {}).Races || []).filter(function (x) { return near(x.date + "T12:00:00Z", rs.date || ev.date, 3); })[0];
+      if (r) {
+        var base = JOL + yr + "/" + r.round + "/";
+        var got = await Promise.allSettled([getJSON(base + "results.json"), getJSON(base + "qualifying.json"), getJSON(base + "sprint.json")]);
+        var pick = function (g, k) { return g.status === "fulfilled" ? ((((g.value.MRData || {}).RaceTable || {}).Races || [])[0] || {})[k] || [] : []; };
+        out.race = pick(got[0], "Results"); out.qual = pick(got[1], "QualifyingResults"); out.sprint = pick(got[2], "SprintResults");
+      }
+    } catch (e) {}
+    jol[ev.id] = out; jolBusy[ev.id] = 0; render();
+  }
+  // A constructor's colour, from ESPN's standings, matched by name and muted
+  // like the team colours.
+  function teamColor(name) {
+    var teams = (standings && standings.teams) || [], w = words(name), best = null, sc = 0;
+    teams.forEach(function (t) { var n = w.filter(function (x) { return words(t.name).indexOf(x) >= 0; }).length; if (n > sc) { sc = n; best = t; } });
+    var rgb = best && rgbOf(best.color);
+    return rgb ? css(readable(rgb, rgbOf(pal().bg) || [255, 255, 248])) : null;
+  }
+  function swatch(team) { var c = team && teamColor(team); return h("span", { class: "sw", style: "background:" + (c || "transparent") }); }
+  function lapStatus(r) {
+    if (r.Time && r.Time.time) return r.Time.time;
+    var st = r.status || "";
+    if (/^finished$/i.test(st)) return "";
+    if (/lap/i.test(st)) return st.replace(/^\+/, "+").replace(/Laps?$/, function (m) { return m.toLowerCase(); });
+    return st + (+r.laps ? ", lap " + r.laps : "");
+  }
+  // Grid to finish: Tufte's slopegraph. Each driver a line from where they
+  // started to where they finished, in team colour; a car that stopped is a
+  // grey dashed line. The angles tell the race.
+  function slopegraph(rows) {
+    var n = Math.max(rows.length, Math.max.apply(null, rows.map(function (r) { return +r.grid || 0; }))), RH = 17, top = 22, W = 230, xl = 44, xr = 186, H = top + n * RH + 6;
+    var NS = "http://www.w3.org/2000/svg", sv = document.createElementNS(NS, "svg");
+    sv.setAttribute("viewBox", "0 0 " + W + " " + H); sv.setAttribute("width", W); sv.setAttribute("height", H);
+    sv.setAttribute("role", "img"); sv.setAttribute("aria-label", "Starting grid to finishing order");
+    function el(tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt != null) e.textContent = txt; sv.appendChild(e); return e; }
+    var p = pal(), y = function (pos) { return top + (pos - 0.5) * RH; };
+    el("text", { x: xl, y: 12, "text-anchor": "end", class: "sl-h" }, "Grid");
+    el("text", { x: xr, y: 12, "text-anchor": "start", class: "sl-h" }, "Finish");
+    rows.forEach(function (r) {
+      var g = +r.grid || n, f = +r.position || n, done = /^finished$|lap/i.test(r.status || "") || !!(r.Time && r.Time.time);
+      var col = teamColor(r.Constructor && r.Constructor.name) || p.ink;
+      var ln = el("line", { x1: xl + 6, y1: y(g), x2: xr - 6, y2: y(f), stroke: done ? col : p.gray, "stroke-width": done ? 1.6 : 1, "stroke-dasharray": done ? "" : "3 3" });
+      var code = (r.Driver && r.Driver.code) || "";
+      el("text", { x: xl, y: y(g) + 4, "text-anchor": "end", class: "sl-l" }, code + " " + g);
+      el("text", { x: xr, y: y(f) + 4, "text-anchor": "start", class: "sl-l" }, f + " " + code);
+    });
+    return h("figure", { class: "slope" }, [sv, h("figcaption", { text: "Grid to finish. Dashed: did not finish." })]);
+  }
+  function sessionTable(ev, se) {
+    var j = jol[ev.id], nm = se.name || "";
+    var rich = j && se.state === "post" ? (/^race$/i.test(nm) ? j.race : /^qual/i.test(nm) ? j.qual : /^sprint$/i.test(nm) ? j.sprint : null) : null;
+    if (rich && rich.length) {
+      var isQ = /^qual/i.test(nm), lead = rich[0];
+      var body = rich.map(function (r) {
+        var team = r.Constructor && r.Constructor.name, res = isQ ? (r.Q3 || r.Q2 || r.Q1 || "") : lapStatus(r);
+        return h("tr", null, [h("td", { text: r.positionText && !/^\d+$/.test(r.positionText) ? "–" : String(r.position) }),
+          h("td", { class: "r" + (r === lead ? " lead" : "") }, [swatch(team), r.Driver.givenName + " " + r.Driver.familyName]),
+          h("td", { class: "r tmn", text: team || "" }),
+          h("td", { class: r === lead ? "lead" : null, text: res }),
+          isQ ? null : h("td", { text: +r.points ? String(+r.points) : "" })]);
+      });
+      var head = ["", "Driver", "Team", isQ ? "Best" : "Time", isQ ? null : "Pts"].filter(function (x) { return x !== null; });
+      var table = h("div", { class: "scroll" }, [h("table", { class: "stats f1t" }, [
+        h("thead", null, [h("tr", null, head.map(function (t, i) { return h("th", { class: i === 1 || i === 2 ? "r" : null, scope: "col", text: t }); }))]),
+        h("tbody", null, body)])]);
+      return isQ ? table : h("div", { class: "withslope" }, [table, slopegraph(rich)]);
+    }
+    var rows = (se.results || []).map(function (r, i) {
+      var g = gridMap && gridMap[famKey(r.n)], team = (g && g.team) || r.t;
+      return h("tr", null, [h("td", { text: String(r.pos || i + 1) }), h("td", { class: "r" }, [swatch(team), r.n || r.a || "?"]), h("td", { class: "r tmn", text: team || "" })]);
+    });
+    if (!rows.length || se.state === "pre") return h("p", { class: "dnote", text: se.state === "pre" ? "Not started." : "No order yet." });
+    return h("div", { class: "scroll" }, [h("table", { class: "stats f1t" }, [
+      h("thead", null, [h("tr", null, ["", "Driver", "Team"].map(function (t, i) { return h("th", { class: i ? "r" : null, scope: "col", text: t }); }))]),
+      h("tbody", null, rows)])]);
   }
 
   // ---- Drawing -----------------------------------------------------------
@@ -1337,7 +1450,8 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var race = ss.filter(function (se) { return /race/i.test(se.name); }).slice(-1)[0] || done;
     function order(se, n) {
       return (se && se.results && se.results.length) ? h("ol", { "aria-label": sessionName(se.name) + " order" }, se.results.slice(0, n).map(function (r, i) {
-        return h("li", { title: [r.n, r.t].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), r.a || "?"]);
+        var gm = gridMap && gridMap[famKey(r.n)], team = (gm && gm.team) || r.t;
+        return h("li", { title: [r.n, team].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), swatch(team), (gm && gm.code) || r.a || "?"]);
       })) : null;
     }
     var lines;
@@ -1533,17 +1647,13 @@ table.mkt .pct { font-weight: 500; flex: none; }
       whereLine((currentSession(ev) || {}).media, null, ev.circuit ? [ev.circuit.name, ev.circuit.city, ev.circuit.country].filter(Boolean).join(", ") : null),
       h("div", { class: "racetop" }, [trackFig(ev, true), standingsBlock()]),
       h("div", { class: "markets", id: "dmarkets" }),
-      h("div", { class: "teams-box" }, ss.map(function (se) {
-        var rows = (se.results || []).map(function (r, i) {
-          return h("tr", null, [h("td", { text: String(r.pos || i + 1) }), h("td", { class: "r", text: r.n || r.a || "?" }), h("td", { class: "r", text: r.a || "" }), h("td", { class: "r", text: r.t || "" })]);
-        });
+      h("div", { class: "racesessions" }, ss.map(function (se) {
         return h("section", { class: "tbox" }, [
           h("h2", { text: sessionName(se.name) }),
           h("h3", { text: se.state === "pre" ? whenText(se.date) : (se.detail || (se.state === "post" ? "Final" : "Live")) }),
-          rows.length && se.state !== "pre" ? h("div", { class: "scroll" }, [h("table", { class: "stats" }, [
-            h("thead", null, [h("tr", null, ["Pos", "Driver", "", "Team"].map(function (t, i) { return h("th", { class: i ? "r" : null, scope: "col", text: t }); }))]),
-            h("tbody", null, rows)])]) : h("p", { class: "dnote", text: se.state === "pre" ? "Not started." : "No order yet." })]);
+          sessionTable(ev, se)]);
       })));
+    if (!ev.example) loadJol(ev);
     renderMarkets();
   }
 
@@ -1647,7 +1757,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
   // to the app (and every 10 minutes) ask for version.json, bypassing caches,
   // and reload when a newer version is published.
   var VERSION = (document.querySelector('meta[name="agate-version"]') || {}).content || "dev";
-  $("foot").textContent = "ScoreCard, version " + VERSION + ". Scores from ESPN, markets from Polymarket.";
+  $("foot").textContent = "ScoreCard, version " + VERSION + ". Scores from ESPN, markets from Polymarket, F1 results from Jolpica.";
   async function checkVersion() {
     if (VERSION === "dev") return;
     try {
@@ -1663,6 +1773,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
   poll();
   loadCircuits();
   loadStandings();
+  loadGridMap();
   setInterval(function () { if (!document.hidden && Date.now() - standingsAt > 600000) loadStandings(); }, 60000);
 })();
 </script>
