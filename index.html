@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1239">
+<meta name="agate-version" content="2026.11.26-1451">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -247,6 +247,20 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
 .slope .sl-h { font: italic 13px var(--serif); fill: var(--gray); }
 .slope .sl-l { font: 12px var(--serif); fill: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
 .slope figcaption { font-size: 13px; color: var(--gray); font-style: italic; margin-top: 2px; }
+a.plink { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+a.plink:hover { text-decoration-color: var(--ink); }
+.phead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
+.phead .jn { font-size: clamp(64px, 16vw, 112px); line-height: 0.85; font-weight: 500; letter-spacing: -0.03em; }
+.phead .pn { margin: 0; font-style: normal; font-size: clamp(28px, 6vw, 40px); line-height: 1.05; }
+.phead .pmeta { margin: 4px 0 0; font-style: italic; color: var(--gray); font-size: 15px; }
+.spks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 28px; }
+.spk { display: grid; grid-template-columns: 3.2em 110px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 15px; }
+.spk .k { color: var(--gray); letter-spacing: 0.04em; font-size: 13px; }
+.spk canvas { width: 110px; height: 26px; display: block; }
+.spk .v b { font-weight: 600; }
+.spk .v span { color: var(--gray); font-size: 13px; font-style: italic; }
+.tbox .cap { margin: 4px 0 0; font-size: 14px; color: var(--gray); font-style: italic; }
+table.stats td.gres { color: var(--gray); white-space: nowrap; }
 .standings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; align-items: start; margin-top: 18px; }
 @media (max-width: 700px) { .standings { grid-template-columns: minmax(0, 1fr); } }
 .standings h3 { margin: 0 0 4px; font-weight: 400; font-style: italic; font-size: 19px; }
@@ -435,7 +449,7 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
     (comp.competitors || []).forEach(function (c) { side[String((c.team || {}).id)] = { home: c.homeAway === "home", score: c.score }; });
     function player(a, stats) {
       var ath = a.athlete || {}, pos = (ath.position || a.position || {}).abbreviation;
-      return { n: ath.displayName, s: ath.shortName, j: ath.jersey || a.jersey, p: pos, st: a.starter, dnp: a.didNotPlay, r: a.reason, v: stats };
+      return { id: ath.id, n: ath.displayName, s: ath.shortName, j: ath.jersey || a.jersey, p: pos, st: a.starter, dnp: a.didNotPlay, r: a.reason, v: stats };
     }
     function title(s) { return s.replace(/_/g, " ").replace(/\w\S*/g, function (w) { return w[0].toUpperCase() + w.slice(1).toLowerCase(); }); }
     var teams = ((d.boxscore || {}).players || []).map(function (t) {
@@ -672,8 +686,8 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
       }
       lastError = "";
       mode = "live";
-      if (view && !box.data && !box.loading) loadBox();
-      if (view && mk.key !== view.l.key + ":" + view.id) loadMarkets();
+      if (view && !view.player && !box.data && !box.loading) loadBox();
+      if (view && !view.player && mk.key !== view.l.key + ":" + view.id) loadMarkets();
     } catch (e) {
       if (String(e && e.message) === "STALE") { busy = false; poll(); return; }
       mode = "live";
@@ -864,7 +878,7 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
   }
   var mk = { key: "", poly: null, at: 0 }, mkTimer = null;
   async function loadMarkets() {
-    if (!view) return;
+    if (!view || view.player) return;
     var l = view.l, key = l.key + ":" + view.id, ev = findEvent(l, view.id);
     clearTimeout(mkTimer);
     if (!ev) return;
@@ -1528,11 +1542,13 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
   // ---- Game page ---------------------------------------------------------
   var view = null, box = { key: "", data: null, error: "", at: 0, loading: false }, boxTimer = null, scrollBack = 0;
   function openGame(l, ev) { scrollBack = window.scrollY; location.hash = "game-" + l.key + "-" + ev.id; }
+  var backTo = "";
   function route() {
-    var m = /^#game-([a-z0-9]+)-([A-Za-z0-9]+)$/.exec(location.hash || "");
-    var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : null, was = view;
+    var m = /^#game-([a-z0-9]+)-([A-Za-z0-9]+)$/.exec(location.hash || ""), pm = /^#player-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
+    var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : pm && BY_KEY[pm[1]] ? { l: BY_KEY[pm[1]], id: pm[2], player: true } : null, was = view;
     view = next;
     clearTimeout(boxTimer);
+    if (view && view.player) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadPlayer(); render(); return; }
     if (view) {
       var key = view.l.key + ":" + view.id;
       if (box.key !== key) box = { key: key, data: null, error: "", at: 0, loading: false };
@@ -1546,7 +1562,7 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
   }
   function findEvent(l, id) { return ((data[l.key] || {}).events || []).filter(function (e) { return String(e.id) === String(id); })[0] || null; }
   async function loadBox() {
-    if (!view) return;
+    if (!view || view.player) return;
     var l = view.l, id = view.id, key = l.key + ":" + id, ev = findEvent(l, id);
     clearTimeout(boxTimer);
     if (l.race) { renderDetail(true); return; }
@@ -1580,7 +1596,8 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
     var rows = [], sawBench = false, hasStarters = group.players.some(function (p) { return p.st === true; });
     group.players.forEach(function (p) {
       if (hasStarters && p.st === false && !sawBench) { sawBench = true; rows.push(h("tr", { class: "bench" }, [h("td", { colspan: String(group.labels.length + 1), text: "Bench" })])); }
-      var name = h("td", { class: "pl", title: p.n || "" }, [p.s || p.n || "?", (p.p || p.j) ? h("span", { text: [p.p, p.j ? "#" + p.j : null].filter(Boolean).join(" ") }) : null]);
+      var label = p.id && view ? h("a", { class: "plink", href: "#player-" + view.l.key + "-" + p.id, onclick: function () { backTo = location.hash; } , text: p.s || p.n || "?" }) : (p.s || p.n || "?");
+      var name = h("td", { class: "pl", title: p.n || "" }, [label, (p.p || p.j) ? h("span", { text: [p.p, p.j ? "#" + p.j : null].filter(Boolean).join(" ") }) : null]);
       if (p.dnp || !(p.v && p.v.length)) {
         rows.push(h("tr", { class: "dnp" }, [name, h("td", { class: "why", colspan: String(group.labels.length), text: p.r ? String(p.r) : "Did not play" })]));
         return;
@@ -1657,6 +1674,103 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
     renderMarkets();
   }
 
+  // ---- Player page ---------------------------------------------------------
+  // ESPN's athlete bio, season and career averages, and the season game by
+  // game. The season is drawn as small multiples: one sparkline per key stat,
+  // its high and low marked, ending on the latest game. No photographs: the
+  // jersey number, large, in the team's colour, stands in for one.
+  var pl = { key: "" };
+  var KEY_STATS = { basketball: ["PTS", "REB", "AST", "MIN"], hockey: ["G", "A", "PTS", "S", "TOI"], soccer: ["G", "A", "SH", "ST"],
+    baseball: ["H", "HR", "RBI", "R", "K", "ERA"], football: ["YDS", "TD", "CAR", "REC", "CMP"] };
+  async function loadPlayer() {
+    var l = view.l, id = view.id, key = l.key + ":" + id;
+    if (pl.key === key) return;
+    pl = { key: key, loading: true };
+    var base = "https://site.web.api.espn.com/apis/common/v3/sports/" + l.paths[0].split("?")[0] + "/athletes/" + id;
+    var got = await Promise.allSettled([getJSON(base), getJSON(base + "/overview"), getJSON(base + "/gamelog")]);
+    if (pl.key !== key) return;
+    var ok = function (i) { return got[i].status === "fulfilled" ? got[i].value : null; };
+    pl.bio = (ok(0) || {}).athlete || null; pl.ov = ok(1); pl.gl = ok(2); pl.loading = false;
+    if (!pl.bio) pl.err = "Couldn't load this player.";
+    renderDetail(true);
+  }
+  function gameLog(gl) {
+    if (!gl || !gl.labels) return null;
+    var meta = gl.events || {}, rows = [], seen = {};
+    (gl.seasonTypes || []).forEach(function (st) {
+      if (/pre/i.test(st.displayName || "")) return;
+      (st.categories || []).forEach(function (cat) {
+        (cat.events || []).forEach(function (e) {
+          if (seen[e.eventId] || !e.stats) return;
+          seen[e.eventId] = 1;
+          var m = meta[e.eventId] || {};
+          rows.push({ id: e.eventId, stats: e.stats, date: m.gameDate, at: m.atVs, opp: (m.opponent || {}).abbreviation || "", res: m.gameResult || "", score: m.score || "" });
+        });
+      });
+    });
+    rows.sort(function (a, b) { return Date.parse(a.date) - Date.parse(b.date); });
+    return { labels: gl.labels, names: gl.displayNames || gl.labels, rows: rows };
+  }
+  function sparkFig(label, title, series) {
+    var c = h("canvas", { "aria-label": title + " by game" });
+    var vals = series.filter(function (v) { return v != null; });
+    if (vals.length < 2) return null;
+    var last = vals[vals.length - 1], hi = Math.max.apply(null, vals), lo = Math.min.apply(null, vals);
+    var avg = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
+    var fmt = function (v) { return Math.abs(v) >= 100 || v === Math.round(v) ? String(Math.round(v)) : v.toFixed(1); };
+    requestAnimationFrame(function () {
+      var sc = sizeCanvas(c); if (!sc) return;
+      var g = sc.g, W = sc.w, H = sc.h, p = pal(), pad = 4, span = hi - lo || 1;
+      var X = function (i) { return pad + i / (series.length - 1) * (W - pad * 2); }, Y = function (v) { return H - pad - (v - lo) / span * (H - pad * 2); };
+      g.strokeStyle = p.rule; g.lineWidth = 1; g.beginPath(); g.moveTo(pad, Math.round(Y(avg)) + 0.5); g.lineTo(W - pad, Math.round(Y(avg)) + 0.5); g.stroke();
+      g.strokeStyle = p.ink; g.lineWidth = 1.1; g.beginPath();
+      var started = false;
+      series.forEach(function (v, i) { if (v == null) return; if (!started) { g.moveTo(X(i), Y(v)); started = true; } else g.lineTo(X(i), Y(v)); });
+      g.stroke();
+      var hiI = series.indexOf(hi), loI = series.indexOf(lo), lastI = series.lastIndexOf(last);
+      [[hiI, p.away], [loI, p.away], [lastI, p.home]].forEach(function (d) { g.fillStyle = d[1]; g.beginPath(); g.arc(X(d[0]), Y(series[d[0]]), 2.4, 0, Math.PI * 2); g.fill(); });
+    });
+    return h("div", { class: "spk" }, [h("span", { class: "k", title: title, text: label }), c,
+      h("span", { class: "v" }, [h("b", { text: fmt(last) }), h("span", { text: " avg " + fmt(avg) + ", high " + fmt(hi) })])]);
+  }
+  function renderPlayer(d) {
+    var l = view.l, back = h("button", { class: "back", type: "button", text: "← Back", onclick: function () { location.hash = backTo && backTo !== location.hash ? backTo : ""; } });
+    if (pl.loading || pl.key !== l.key + ":" + view.id) { d.replaceChildren(back, h("p", { class: "dnote", text: "Loading player…" })); return; }
+    if (!pl.bio) { d.replaceChildren(back, h("p", { class: "dnote err", text: pl.err || "Couldn't load this player." })); return; }
+    var a = pl.bio, t = a.team || {}, rgb = rgbOf(t.color ? "#" + String(t.color).replace("#", "") : ""), col = rgb ? css(readable(rgb, rgbOf(pal().bg) || [255, 255, 248])) : pal().ink;
+    var born = a.birthPlace ? [a.birthPlace.city, a.birthPlace.state || a.birthPlace.country].filter(Boolean).join(", ") : null;
+    var meta = [(a.position || {}).displayName, t.displayName, [a.displayHeight, a.displayWeight].filter(Boolean).join(", "), a.age ? "age " + a.age : null,
+      a.college ? (a.college.name || a.college.shortName) : born ? "from " + born : null, a.displayExperience || (a.debutYear ? "since " + a.debutYear : null)].filter(Boolean);
+    var kids = [back, h("div", { class: "phead" }, [
+      a.jersey ? h("span", { class: "jn", style: "color:" + col, text: String(a.jersey) }) : "",
+      h("div", null, [h("h2", { class: "pn", text: a.displayName || a.fullName || "" }), h("p", { class: "pmeta", text: meta.join(" · ") })])])];
+    // season and career
+    var st = pl.ov && pl.ov.statistics;
+    if (st && st.labels && st.splits && st.splits.length) {
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: "Averages" }), h("div", { class: "scroll" }, [h("table", { class: "stats" }, [
+        h("thead", null, [h("tr", null, [h("th", { class: "pl", scope: "col", text: "" })].concat(st.labels.map(function (lb, i) { return h("th", { scope: "col", title: (st.displayNames || [])[i] || null, text: lb }); })))]),
+        h("tbody", null, st.splits.map(function (sp) { return h("tr", null, [h("td", { class: "pl", text: sp.displayName || "" })].concat((sp.stats || []).map(function (v) { return h("td", { text: String(v) }); }))); }))])])]));
+    }
+    var gl = gameLog(pl.gl);
+    if (gl && gl.rows.length) {
+      var want = KEY_STATS[l.sport] || [], idx = [];
+      want.forEach(function (k) { var i = gl.labels.indexOf(k); if (i >= 0 && idx.indexOf(i) < 0) idx.push(i); });
+      if (!idx.length) gl.labels.forEach(function (k, i) { if (idx.length < 3 && gl.rows.some(function (r) { return statNum(r.stats[i]) != null; })) idx.push(i); });
+      var figs = idx.slice(0, 4).map(function (i) { return sparkFig(gl.labels[i], gl.names[i] || gl.labels[i], gl.rows.map(function (r) { return statNum(r.stats[i]); })); }).filter(Boolean);
+      if (figs.length) kids.push(h("section", { class: "tbox" }, [h("h3", { text: "This season, game by game" }), h("div", { class: "spks" }, figs),
+        h("p", { class: "cap", text: "Each line is one stat across the season's " + gl.rows.length + " games. Blue dots mark the high and low, red the latest game; the faint rule is the average." })]));
+      var recent = gl.rows.slice(-10).reverse();
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: "Recent games" }), h("div", { class: "scroll" }, [h("table", { class: "stats" }, [
+        h("thead", null, [h("tr", null, [h("th", { class: "pl", scope: "col", text: "" }), h("th", { class: "r", scope: "col", text: "" })].concat(gl.labels.map(function (lb, i) { return h("th", { scope: "col", title: gl.names[i] || null, text: lb }); })))]),
+        h("tbody", null, recent.map(function (r) {
+          var dt = r.date ? new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+          return h("tr", null, [h("td", { class: "pl", text: dt + " " + (r.at === "@" ? "@ " : "v ") + r.opp }), h("td", { class: "r gres", text: [r.res, dash(r.score)].filter(Boolean).join(" ") })]
+            .concat(r.stats.map(function (v) { return h("td", { text: String(v) }); })));
+        }))])])]));
+    } else kids.push(h("p", { class: "dnote", text: "No games this season yet." }));
+    d.replaceChildren.apply(d, kids);
+  }
+
   function recLine(t) {
     var parts = [dash(t.record), dash(t.recSplit)].filter(Boolean);
     return parts.length ? h("span", { class: "rec", text: parts.join(" · ") }) : "";
@@ -1666,6 +1780,7 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
     var d = $("detail");
     if (!view) { d.hidden = true; tablesKey = ""; return; }
     d.hidden = false;
+    if (view.player) { renderPlayer(d); return; }
     var l = view.l, ev = findEvent(l, view.id);
     if (l.race) { renderRace(d, l, ev); return; }
     var bx = box.data;
