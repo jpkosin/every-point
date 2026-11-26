@@ -945,7 +945,8 @@ table.mkt .pct { font-weight: 500; flex: none; }
   function whenText(date) {
     var d = new Date(date);
     if (isNaN(d)) return "";
-    var time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    // The phone's own time zone, labelled (CST, PST, GMT+1…).
+    var time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
     return d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + ", " + time;
   }
   function hasStar(x) { return (x.ev.teams || []).some(function (t) { return !!prefs.stars[x.l.key + ":" + t.id]; }); }
@@ -1000,8 +1001,8 @@ table.mkt .pct { font-weight: 500; flex: none; }
     return t;
   }
   function f1Block(l) {
-    var evs = (data.f1 || {}).events || [], table = standingsBlock(10);
-    if (!evs.length && !table) return null;
+    var evs = (data.f1 || {}).events || [];
+    if (!evs.length) return null;
     return h("section", { class: "group f1" }, [h("h2", { text: "Formula 1" })].concat(evs.map(function (ev) {
       var cur = currentSession(ev), res = (cur && cur.results) || [];
       var ss = (ev.sessions || []).map(function (se, i) {
@@ -1017,7 +1018,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
             return h("li", { title: [r.n, r.t].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), r.a || "?"]);
           })) : null]), trackFig(ev, false)])]);
       return el;
-    })).concat([table]));
+    })));
   }
 
   function render() {
