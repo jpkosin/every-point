@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Agate</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.25-2136">
+<meta name="agate-version" content="2026.11.25-2141">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agate">
@@ -135,7 +135,9 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
   table.agate td { padding: 3px 3px; }
 }
 
-.f1 { margin-bottom: 30px; }
+.f1 { margin-bottom: 14px; }
+.f1 .f1h { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; padding: 12px 0 3px; border-bottom: 1px solid var(--ink); }
+.f1 .row2.small { grid-template-columns: minmax(0, 1fr) 84px; }
 .f1 .ev { cursor: pointer; padding: 6px 0 10px; border-bottom: 1px solid var(--rule); }
 .f1 .ev:hover { background: color-mix(in srgb, var(--rule) 25%, transparent); }
 .f1 .nm { font-size: 19px; font-weight: 500; }
@@ -1193,25 +1195,35 @@ table.mkt .pct { font-weight: 500; flex: none; }
     });
     return t;
   }
-  function f1Block(l) {
-    var evs = (data.f1 || {}).events || [];
+  // An F1 weekend sits with the games by what is happening: Live only while
+  // a session runs (with its running order), Coming up between sessions
+  // (the next one, and the last one's top three), Final with the podium.
+  function f1Item(l, ev) {
+    var ss = ev.sessions || [], cur = currentSession(ev), live = ev.state === "in";
+    var next = ss.filter(function (se) { return se.state === "pre"; })[0];
+    var done = ss.filter(function (se) { return se.state === "post"; }).slice(-1)[0];
+    var race = ss.filter(function (se) { return /race/i.test(se.name); }).slice(-1)[0] || done;
+    function order(se, n) {
+      return (se && se.results && se.results.length) ? h("ol", { "aria-label": sessionName(se.name) + " order" }, se.results.slice(0, n).map(function (r, i) {
+        return h("li", { title: [r.n, r.t].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), r.a || "?"]);
+      })) : null;
+    }
+    var lines;
+    if (live) lines = [h("div", { class: "ss" }, [h("b", { text: sessionName(cur.name) + ", " + (cur.detail || "live").toLowerCase() })]), order(cur, 10)];
+    else if (ev.state === "post") lines = [h("div", { class: "ss" }, [h("b", { text: sessionName(race && race.name) + " podium" })]), order(race, 3)];
+    else lines = [
+      next ? h("div", { class: "ss" }, ["Next: ", h("b", { text: sessionName(next.name) + ", " + whenText(next.date) })]) : null,
+      done ? h("div", { class: "ss" }, [sessionName(done.name) + ":"]) : null, order(done, 3)];
+    return h("div", { class: "ev", tabindex: "0", role: "link", "aria-label": (ev.name || "Grand Prix") + ": all sessions",
+      onclick: function () { openGame(l, ev); }, onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
+      h("div", { class: "row2" + (live ? "" : " small") }, [h("div", null, [
+        h("div", { class: "nm" }, [ev.name || "Grand Prix", ev.example ? h("span", { class: "ex", text: " (example)" }) : null])].concat(lines)),
+        trackFig(ev, false)])]);
+  }
+  function f1Block(l, state) {
+    var evs = ((data.f1 || {}).events || []).filter(function (ev) { return (ev.state || "pre") === state; });
     if (!evs.length) return null;
-    return h("section", { class: "group f1" }, [h("h2", { text: "Formula 1" })].concat(evs.map(function (ev) {
-      var cur = currentSession(ev), res = (cur && cur.results) || [];
-      var ss = (ev.sessions || []).map(function (se, i) {
-        var txt = sessionName(se.name) + (se.state === "in" ? ", " + (se.detail || "live").toLowerCase() : se.state === "pre" ? " " + whenText(se.date) : "");
-        return [i ? ", " : "", se === cur ? h("b", { text: txt }) : txt];
-      }).reduce(function (a, b) { return a.concat(b); }, []);
-      var el = h("div", { class: "ev", tabindex: "0", role: "link", "aria-label": (ev.name || "Grand Prix") + ": all sessions",
-        onclick: function () { openGame(l, ev); }, onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
-        h("div", { class: "row2" }, [h("div", null, [
-          h("div", { class: "nm" }, [ev.name || "Grand Prix", ev.example ? h("span", { class: "ex", text: " (example)" }) : null]),
-          h("div", { class: "ss" }, ss),
-          res.length && cur.state !== "pre" ? h("ol", { "aria-label": sessionName(cur.name) + " order" }, res.slice(0, 10).map(function (r, i) {
-            return h("li", { title: [r.n, r.t].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), r.a || "?"]);
-          })) : null]), trackFig(ev, false)])]);
-      return el;
-    })));
+    return h("div", { class: "f1" }, [h("div", { class: "f1h", text: "Formula 1" })].concat(evs.map(function (ev) { return f1Item(l, ev); })));
   }
 
   function render() {
@@ -1229,10 +1241,11 @@ table.mkt .pct { font-weight: 500; flex: none; }
       if (l.race || (prefs.league !== "all" && prefs.league !== l.key)) return;
       ((data[l.key] || {}).events || []).forEach(function (ev) { list.push({ l: l, li: li, ev: ev }); });
     });
-    if (prefs.league === "all" || prefs.league === "f1") { var f1 = f1Block(BY_KEY.f1); if (f1) { any = true; main.append(f1); } }
+    var showF1 = prefs.league === "all" || prefs.league === "f1";
     [["in", "Live"], ["post", "Final"], ["pre", "Coming up"]].forEach(function (g, gi) {
       var items = list.filter(function (x) { return (x.ev.state || "pre") === g[0]; });
-      if (!items.length) return;
+      var f1 = showF1 ? f1Block(BY_KEY.f1, g[0]) : null, nf1 = f1 ? f1.querySelectorAll(".ev").length : 0;
+      if (!items.length && !f1) return;
       any = true;
       items.sort(function (a, b) {
         if (g[0] === "pre") return new Date(a.ev.date) - new Date(b.ev.date);
@@ -1240,9 +1253,9 @@ table.mkt .pct { font-weight: 500; flex: none; }
         return 0;
       });
       main.append(h("section", { class: "group" }, [
-        h("h2", null, [g[1], h("span", { class: "c", text: String(items.length) })]),
-        g[0] !== "pre" && !main.querySelector(".note") ? h("p", { class: "note", text: "Each line traces the margin over the game: above the rule the home team leads, below it the visitors, each in its team's colour. Dots are scores seen live; one scale per league. ★ marks Polymarket's favourite to win." }) : null,
-        agate(items, g[0])]));
+        h("h2", null, [g[1], h("span", { class: "c", text: String(items.length + nf1) })]),
+        g[0] !== "pre" && items.length && !main.querySelector(".note") ? h("p", { class: "note", text: "Each line traces the margin over the game: above the rule the home team leads, below it the visitors, each in its team's colour. Dots are scores seen live; one scale per league. ★ marks Polymarket's favourite to win." }) : null,
+        f1, items.length ? agate(items, g[0]) : null]));
     });
     if (!any) {
       var which = prefs.league === "all" ? "any league" : BY_KEY[prefs.league].label;
