@@ -36,7 +36,8 @@ jobs:
             minx = min(p[0] for p in xy); miny = min(p[1] for p in xy)
             span = max(max(p[0] for p in xy) - minx, max(p[1] for p in xy) - miny) or 1
             xy = [((p[0] - minx) / span * 1000, (p[1] - miny) / span * 1000) for p in xy]
-            xy = rdp(xy, 1.2)
+            far = max(range(len(xy)), key=lambda i: math.hypot(xy[i][0] - xy[0][0], xy[i][1] - xy[0][1]))
+            xy = rdp(xy[:far + 1], 1.2)[:-1] + rdp(xy[far:], 1.2)
             p = f.get("properties", {})
             out.append({"id": p.get("id"), "name": p.get("Name"), "location": p.get("Location"),
                         "length": p.get("length"), "pts": [[round(x), round(y)] for x, y in xy]})
