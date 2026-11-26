@@ -1,0 +1,28 @@
+name: probe
+on:
+  push:
+    paths: [".github/workflows/probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: python
+        run: |
+          import json, urllib.request
+          def get(u): return json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
+          for dts in ["20261121", "20261122", "20261123"]:
+            d = get("https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=" + dts)
+            ev = d.get("events") or []
+            print("dates", dts, [(e.get("name"), e.get("id")) for e in ev])
+            if ev:
+              e = ev[0]
+              for c in e["competitions"]:
+                print("  comp", (c.get("type") or {}).get("abbreviation"), c.get("status", {}).get("type", {}).get("state"), "n", len(c.get("competitors") or []))
+              race = [c for c in e["competitions"] if (c.get("type") or {}).get("abbreviation") == "Race"] or e["competitions"][-1:]
+              cs = race[0].get("competitors") or []
+              for x in cs[:3]: print(json.dumps(x, indent=1)[:2500])
+              break
+          s = get("https://site.api.espn.com/apis/v2/sports/racing/f1/standings")
+          for ch in s.get("children", []):
+            for en in (ch.get("standings") or {}).get("entries", [])[:2]:
+              print("STAND", ch.get("name"), json.dumps({k: en.get(k) for k in ("athlete", "team")})[:900])
