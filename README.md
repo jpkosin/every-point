@@ -9,5 +9,5 @@ Stars, bells and sound are saved in each browser separately. Alerts and chimes w
 ## Data
 
 - Scores, box scores, F1 sessions and championship standings: ESPN's public site API.
-- Prediction markets on game pages: Polymarket (gamma API) and Kalshi (public market data). Prices are shown as implied chances; nothing here places bets.
+- Prediction markets on game pages: Polymarket (gamma API). Prices are shown as implied chances; nothing here places bets.
 - F1 track outlines: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License), simplified into `circuits.json` by `.github/workflows/circuits.yml`.

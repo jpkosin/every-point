@@ -186,8 +186,7 @@ table.stats .r { text-align: left; }
 .days .arrow:hover { border-color: var(--ink); }
 .days .lbl { font-size: 21px; margin: 0 4px; }
 .days input { font: inherit; font-size: 16px; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 6px 8px; min-height: 40px; }
-.markets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; align-items: start; }
-@media (max-width: 800px) { .markets { grid-template-columns: minmax(0, 1fr); } }
+.markets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: 760px; }
 .mk h2 { font-style: normal; font-size: 22px; }
 .mk .ev { margin: 8px 0 2px; font-size: 16px; }
 .mk .ev a { color: var(--ink); text-decoration-color: var(--rule); text-underline-offset: 3px; }
@@ -652,12 +651,10 @@ table.mkt .pct { font-weight: 500; flex: none; }
   }
 
   // ---- Prediction markets ------------------------------------------------
-  // Polymarket and Kalshi, matched to a game by team names and its date in
-  // US Eastern time; the biggest markets by volume, prices as chances.
-  var POLY = "https://gamma-api.polymarket.com", KALSHI = "https://api.elections.kalshi.com/trade-api/v2";
+  // Polymarket, matched to a game by team names and its date in US Eastern
+  // time; the biggest markets by volume, prices as chances.
+  var POLY = "https://gamma-api.polymarket.com";
   var POLY_PRE = { nfl: "nfl", nba: "nba", mlb: "mlb", nhl: "nhl", mls: "mls", ncaaf: "cfb", ncaam: "cbb", ncaaw: "cwbb" };
-  var KALSHI_SERIES = { nfl: "KXNFLGAME", nba: "KXNBAGAME", mlb: "KXMLBGAME", nhl: "KXNHLGAME", mls: "KXMLSGAME", ncaaf: "KXNCAAFGAME", ncaam: "KXNCAAMBGAME", ncaaw: "KXNCAAWBGAME" };
-  var MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   function etDate(iso) {
     try { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso)); }
     catch (e) { return String(iso).slice(0, 10); }
@@ -672,7 +669,6 @@ table.mkt .pct { font-weight: 500; flex: none; }
   function near(iso, ref, days) { var t = Date.parse(iso); return !isNaN(t) && Math.abs(t - Date.parse(ref)) < days * 864e5; }
   function parseList(x) { try { return Array.isArray(x) ? x : JSON.parse(x || "[]"); } catch (e) { return []; } }
   function money(v) { v = +v || 0; return v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? "$" + Math.round(v / 1e3) + "K" : "$" + Math.round(v); }
-  function count(v) { v = +v || 0; return (v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "K" : String(Math.round(v))) + " contracts"; }
 
   async function polyFor(l, ev) {
     var events = [];
@@ -699,50 +695,27 @@ table.mkt .pct { font-weight: 500; flex: none; }
         var names = parseList(m.outcomes), ps = parseList(m.outcomePrices);
         return { label: m.groupItemTitle || m.question, outs: names.map(function (n, i) { return { n: n, p: +ps[i] || 0 }; }), vol: +m.volumeNum || +m.volume || 0 };
       });
-      return { title: e.title, url: "https://polymarket.com/event/" + e.slug, vol: money(e.volume) + " traded", rows: rows, money: true };
+      return { title: e.title, url: "https://polymarket.com/event/" + e.slug, vol: money(e.volume) + " traded", rows: rows };
     });
   }
-  async function kalshiFor(l, ev) {
-    var ser = KALSHI_SERIES[l.key];
-    if (!ser) return [];
-    var st = ev.state === "post" ? "settled" : "open";
-    var r = await getJSON(KALSHI + "/events?series_ticker=" + ser + "&status=" + st + "&with_nested_markets=true&limit=200");
-    var d = etDate(ev.date), code = d.slice(2, 4) + MON[+d.slice(5, 7) - 1] + d.slice(8, 10), s = sides(ev);
-    var hits = (r.events || []).filter(function (e) {
-      var tk = String(e.event_ticker || "").toUpperCase();
-      if (tk.indexOf(code) < 0) return false;
-      var tail = tk.split(code).pop();
-      return (s.away.abbr && s.home.abbr && tail.indexOf(s.away.abbr.toUpperCase()) >= 0 && tail.indexOf(s.home.abbr.toUpperCase()) >= 0) ||
-        (mentions(e.title, s.away) && mentions(e.title, s.home));
-    });
-    return hits.map(function (e) {
-      var vol = 0, rows = (e.markets || []).map(function (m) {
-        var p = m.last_price_dollars != null ? +m.last_price_dollars : m.last_price ? m.last_price / 100 :
-          (m.yes_bid != null && m.yes_ask != null) ? (m.yes_bid + m.yes_ask) / 200 : 0;
-        vol += +m.volume || 0;
-        return { label: m.yes_sub_title || m.subtitle || m.title, outs: [{ p: p }], vol: +m.volume || 0 };
-      }).sort(function (a, b) { return b.outs[0].p - a.outs[0].p; });
-      return { title: e.title, url: "https://kalshi.com/markets/" + ser.toLowerCase(), vol: count(vol), rows: rows, money: false };
-    });
-  }
-  var mk = { key: "", poly: null, kalshi: null, at: 0 }, mkTimer = null;
+  var mk = { key: "", poly: null, at: 0 }, mkTimer = null;
   async function loadMarkets() {
     if (!view) return;
     var l = view.l, key = l.key + ":" + view.id, ev = findEvent(l, view.id);
     clearTimeout(mkTimer);
     if (!ev) return;
-    if (mk.key !== key) mk = { key: key, poly: null, kalshi: null, at: 0 };
-    var res = await Promise.allSettled([polyFor(l, ev), l.race ? Promise.resolve(null) : kalshiFor(l, ev)]);
+    if (mk.key !== key) mk = { key: key, poly: null, at: 0 };
+    var got;
+    try { got = await polyFor(l, ev); } catch (e) { got = { error: "Polymarket couldn't be reached." }; }
     if (mk.key !== key) return;
-    mk.poly = res[0].status === "fulfilled" ? res[0].value : { error: "Polymarket couldn't be reached." };
-    mk.kalshi = res[1].status === "fulfilled" ? res[1].value : { error: "Kalshi couldn't be reached from this browser." };
+    mk.poly = got;
     mk.at = Date.now();
     renderMarkets();
     if (view && mk.key === key && ev.state !== "post") mkTimer = setTimeout(loadMarkets, 60000);
   }
-  function marketSection(name, got, isRace) {
+  function marketSection(name, got) {
     var kids = [h("h2", { text: name })];
-    if (got === null) kids.push(h("p", { class: "src", text: isRace ? "Kalshi's F1 markets aren't matched yet." : "Loading markets…" }));
+    if (got === null) kids.push(h("p", { class: "src", text: "Loading markets…" }));
     else if (got.error) kids.push(h("p", { class: "src", text: got.error }));
     else if (!got.length) kids.push(h("p", { class: "src", text: "No matching markets found." }));
     else got.forEach(function (e) {
@@ -753,7 +726,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
           return h("div", { class: "o" }, [o.n ? h("span", { class: "n", text: o.n }) : null,
             h("span", { class: "bar", style: "width:" + Math.max(1, Math.round(o.p * 64)) + "px" }), h("span", { class: "pct", text: (o.p > 0 && pct < 1 ? "<1" : pct) + "%" })]);
         });
-        return h("tr", null, [h("td", { class: "q", text: r.label || "" }), h("td", null, outs), h("td", { class: "v", text: e.money ? money(r.vol) : count(r.vol) })]);
+        return h("tr", null, [h("td", { class: "q", text: r.label || "" }), h("td", null, outs), h("td", { class: "v", text: money(r.vol) })]);
       }))]));
     });
     return h("section", { class: "mk" }, kids);
@@ -761,10 +734,8 @@ table.mkt .pct { font-weight: 500; flex: none; }
   function renderMarkets() {
     var el = $("dmarkets");
     if (!el || !view) return;
-    var isRace = !!view.l.race, busy0 = mk.key !== view.l.key + ":" + view.id;
-    el.replaceChildren(
-      marketSection("Polymarket", busy0 ? null : mk.poly, false),
-      isRace ? "" : marketSection("Kalshi", busy0 ? null : mk.kalshi, false));
+    var busy0 = mk.key !== view.l.key + ":" + view.id;
+    el.replaceChildren(marketSection("Polymarket", busy0 ? null : mk.poly));
     if (!busy0 && mk.at) el.append(h("p", { class: "src", style: "grid-column:1/-1", text: "Prices are the markets' implied chances, " + ((findEvent(view.l, view.id) || {}).state === "in" ? "refreshed every minute." : "as of " + new Date(mk.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ".") }));
   }
 
