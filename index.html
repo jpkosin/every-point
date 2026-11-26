@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1609">
+<meta name="agate-version" content="2026.11.26-1613">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -67,6 +67,8 @@ header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-i
    BODY's background colour (WebKit bug 301756). So in the home-screen app the body
    wears the masthead colour, and the cream page sits on the content wrapper instead. */
 html.standalone, html.standalone body { background: var(--band); }
+/* once the masthead has scrolled away, the strip turns to paper to match what's under it */
+html.standalone.past-band, html.standalone.past-band body { background: var(--bg); }
 html.standalone .wrap { background: linear-gradient(var(--band) 0 env(safe-area-inset-top, 0px), var(--bg) 0); box-shadow: 0 0 0 100vmax var(--bg);
   clip-path: inset(0 -100vmax); min-height: 100vh; }
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -2001,6 +2003,22 @@ header { view-transition-name: masthead; }
   });
   var STANDALONE = !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
   if (STANDALONE) document.documentElement.classList.add("standalone");
+  // iOS colours the strip under the clock from the page background, so swap
+  // it from masthead to paper as the masthead scrolls out from under it.
+  if (STANDALONE) (function () {
+    var queued = false;
+    function check() {
+      queued = false;
+      var band = document.querySelector("header .band");
+      var past = !!band && band.getBoundingClientRect().bottom < 4;
+      if (past !== document.documentElement.classList.contains("past-band")) {
+        document.documentElement.classList.toggle("past-band", past);
+        if (typeof applyTheme === "function") applyTheme();
+      }
+    }
+    addEventListener("scroll", function () { if (!queued) { queued = true; requestAnimationFrame(check); } }, { passive: true });
+    addEventListener("hashchange", function () { setTimeout(check, 50); });
+  })();
   // Theme: auto follows the phone; light and dark override it on this device.
   function applyTheme() {
     var t = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : null;
@@ -2009,7 +2027,7 @@ header { view-transition-name: masthead; }
     var dark = t ? t === "dark" : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     // Safari tints its bars to match the page's top edge: the band at home
     // screen, the paper in the browser.
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE ? (dark ? "#26241f" : "#1d1c1a") : (dark ? "#151413" : "#fffff8"));
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE && !document.documentElement.classList.contains("past-band") ? (dark ? "#26241f" : "#1d1c1a") : (dark ? "#151413" : "#fffff8"));
   }
   $("theme").addEventListener("click", function () {
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
