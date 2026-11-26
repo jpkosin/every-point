@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
-<meta name="theme-color" content="#1d1c1a">
-<meta name="agate-version" content="2026.11.26-1527">
+<meta name="theme-color" content="#fffff8">
+<meta name="agate-version" content="2026.11.26-1544">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -59,8 +59,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--ink); 
    to the screen's edges and under the phone's status bar. */
 header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 16px; -webkit-app-region: drag; }
 header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-ink);
-  margin: calc(-1 * env(safe-area-inset-top, 0px)) calc(50% - 50vw) 0;
-  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(50vw - 50%) 0; }
+  margin: 0 calc(50% - 50vw); padding: 14px calc(50vw - 50%) 0; }
+/* In Safari the band starts below the status bar, where the browser blurs
+   and fades the page; there the paper shows instead. Added to the home
+   screen, nothing fades, so the band runs up under the clock. */
+@media (display-mode: standalone) {
+  header .band { margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+}
+.standalone header .band { margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
 .livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
@@ -1965,13 +1971,17 @@ header { view-transition-name: masthead; }
     if (prefs.sound && audio && audio.state === "suspended") audio.resume();
     soundButton(); if (prefs.sound) chime(1);
   });
+  var STANDALONE = !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+  if (STANDALONE) document.documentElement.classList.add("standalone");
   // Theme: auto follows the phone; light and dark override it on this device.
   function applyTheme() {
     var t = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : null;
     if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
     $("theme-v").textContent = t ? t[0].toUpperCase() + t.slice(1) : "Auto";
     var dark = t ? t === "dark" : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", dark ? "#26241f" : "#1d1c1a");
+    // Safari tints its bars to match the page's top edge: the band at home
+    // screen, the paper in the browser.
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE ? (dark ? "#26241f" : "#1d1c1a") : (dark ? "#151413" : "#fffff8"));
   }
   $("theme").addEventListener("click", function () {
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
