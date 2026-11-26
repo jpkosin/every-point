@@ -8,7 +8,7 @@ Stars, bells and sound are saved in each browser separately. Alerts and chimes w
 
 ## Data
 
-- Scores, box scores, F1 sessions and championship standings: ESPN's public site API.
+- Scores, box scores, F1 sessions and championship standings: ESPN's public site API (NFL, NBA, WNBA, MLB, NHL, MLS, NWSL, Premier League, Champions League, La Liga, Bundesliga, Serie A, Ligue 1, Liga MX, F1 and Division I college football, basketball and hockey).
 - Prediction markets on game pages: Polymarket (gamma API). Prices are shown as implied chances; nothing here places bets.
 - Typeface: EB Garamond (SIL Open Font License, `fonts/OFL.txt`). The app icon is drawn by `tools/agate_icon.py`.
 - F1 track outlines: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License), simplified into `circuits.json` by `.github/workflows/circuits.yml`.

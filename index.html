@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Agate</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.25-2125">
+<meta name="agate-version" content="2026.11.25-2132">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agate">
@@ -287,9 +287,18 @@ table.mkt .pct { font-weight: 500; flex: none; }
   var LEAGUES = [
     { key: "nfl", label: "NFL", paths: ["football/nfl"], sport: "football", bell: true, n: 4, len: 900, unit: 14, pl: "Q" },
     { key: "nba", label: "NBA", paths: ["basketball/nba"], sport: "basketball", bell: false, n: 4, len: 720, unit: 12, pl: "Q" },
+    { key: "wnba", label: "WNBA", paths: ["basketball/wnba"], sport: "basketball", bell: true, n: 4, len: 600, unit: 12, pl: "Q" },
     { key: "mlb", label: "MLB", paths: ["baseball/mlb"], sport: "baseball", bell: true, n: 9, innings: true, unit: 4, pl: "" },
     { key: "nhl", label: "NHL", paths: ["hockey/nhl"], sport: "hockey", bell: true, n: 3, len: 1200, unit: 3, pl: "P" },
     { key: "mls", label: "MLS", paths: ["soccer/usa.1"], sport: "soccer", bell: true, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "nwsl", label: "NWSL", title: "National Women's Soccer League", paths: ["soccer/usa.nwsl"], sport: "soccer", bell: false, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "epl", label: "EPL", title: "Premier League", paths: ["soccer/eng.1"], sport: "soccer", bell: true, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "ucl", label: "UCL", title: "UEFA Champions League", paths: ["soccer/uefa.champions"], sport: "soccer", bell: true, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "laliga", label: "La Liga", title: "La Liga", paths: ["soccer/esp.1"], sport: "soccer", bell: false, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "bund", label: "Bundesliga", title: "Bundesliga", paths: ["soccer/ger.1"], sport: "soccer", bell: false, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "seriea", label: "Serie A", title: "Serie A", paths: ["soccer/ita.1"], sport: "soccer", bell: false, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "ligue1", label: "Ligue 1", title: "Ligue 1", paths: ["soccer/fra.1"], sport: "soccer", bell: false, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
+    { key: "ligamx", label: "Liga MX", title: "Liga MX", paths: ["soccer/mex.1"], sport: "soccer", bell: false, n: 2, len: 2700, up: true, unit: 3, pl: "H" },
     { key: "f1", label: "F1", title: "Formula 1", paths: ["racing/f1"], sport: "racing", bell: true, race: true, slow: true },
     { key: "ncaaf", label: "NCAAF", title: "College football, FBS and FCS", slow: true, sport: "football", bell: false, n: 4, len: 900, unit: 14, pl: "Q",
       paths: ["football/college-football?groups=80&limit=500", "football/college-football?groups=81&limit=500"] },
@@ -751,7 +760,25 @@ table.mkt .pct { font-weight: 500; flex: none; }
   // Polymarket, matched to a game by team names and its date in US Eastern
   // time; the biggest markets by volume, prices as chances.
   var POLY = "https://gamma-api.polymarket.com";
-  var POLY_PRE = { nfl: "nfl", nba: "nba", mlb: "mlb", nhl: "nhl", mls: "mls", ncaaf: "cfb", ncaam: "cbb", ncaaw: "cwbb" };
+  var POLY_PRE = { nfl: "nfl", nba: "nba", wnba: "wnba", mlb: "mlb", nhl: "nhl", mls: "mls", ncaaf: "cfb", ncaam: "cbb", ncaaw: "cwbb",
+    epl: "epl", ucl: "ucl", laliga: "lal", bund: "bun", seriea: "sea", ligue1: "fl1", ligamx: "mex", nwsl: "nwsl" };
+  // A game's Polymarket events: first by its page address (US sports list the
+  // visitors first, soccer the home side), else by searching the team names
+  // near the game's date. College games skip the search when asked, since a
+  // scoreboard can hold hundreds of them.
+  async function findPoly(l, ev, search) {
+    var s = sides(ev), pre = POLY_PRE[l.key], events = [];
+    if (pre && s.away.abbr && s.home.abbr) {
+      var pair = l.sport === "soccer" ? [s.home.abbr, s.away.abbr] : [s.away.abbr, s.home.abbr];
+      try { events = await getJSON(POLY + "/events?slug=" + encodeURIComponent([pre].concat(pair, [etDate(ev.date)]).join("-").toLowerCase())); } catch (e) { events = []; }
+    }
+    if (!events.length && search) {
+      var q = l.sport === "soccer" ? (s.home.name || s.home.abbr) + " " + (s.away.name || s.away.abbr) : (s.away.name || s.away.abbr) + " " + (s.home.name || s.home.abbr);
+      var r = await getJSON(POLY + "/public-search?q=" + encodeURIComponent(q) + "&limit_per_type=20" + (ev.state === "post" ? "" : "&events_status=active"));
+      events = (r.events || []).filter(function (e) { return mentions(e.title, s.away) && mentions(e.title, s.home) && near(e.startTime || e.eventDate || e.endDate, ev.date, 1.5); });
+    }
+    return events.sort(function (a, b) { return (+b.volume || 0) - (+a.volume || 0); });
+  }
   function etDate(iso) {
     try { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso)); }
     catch (e) { return String(iso).slice(0, 10); }
@@ -774,19 +801,12 @@ table.mkt .pct { font-weight: 500; flex: none; }
       var r = await getJSON(POLY + "/public-search?q=" + encodeURIComponent(place + " Grand Prix") + "&limit_per_type=20");
       events = (r.events || []).filter(function (e) { return norm(e.title).indexOf(norm(place)) >= 0 && near(e.endDate || e.startTime, ev.date, 8); });
     } else {
-      var s = sides(ev), pre = POLY_PRE[l.key];
-      if (pre && s.away.abbr && s.home.abbr) {
-        try { events = await getJSON(POLY + "/events?slug=" + encodeURIComponent([pre, s.away.abbr, s.home.abbr, etDate(ev.date)].join("-").toLowerCase())); } catch (e) { events = []; }
-      }
-      if (!events.length) {
-        var r2 = await getJSON(POLY + "/public-search?q=" + encodeURIComponent((s.away.name || s.away.abbr) + " " + (s.home.name || s.home.abbr)) + "&limit_per_type=20");
-        events = (r2.events || []).filter(function (e) { return mentions(e.title, s.away) && mentions(e.title, s.home) && near(e.startTime || e.eventDate || e.endDate, ev.date, 1.5); });
-      }
+      events = await findPoly(l, ev, true);
     }
     events.sort(function (a, b) { return (+b.volume || 0) - (+a.volume || 0); });
     return events.slice(0, l.race ? 3 : 2).map(function (e) {
       var ms = (e.markets || []).filter(function (m) { return m.outcomePrices; }), multi = e.negRisk || e.enableNegRisk, rows;
-      if (multi) rows = ms.map(function (m) { return { label: m.groupItemTitle || m.question, outs: [{ p: +parseList(m.outcomePrices)[0] || 0 }], vol: +m.volumeNum || +m.volume || 0 }; })
+      if (multi) rows = ms.map(function (m) { return { label: String(m.groupItemTitle || m.question || "").replace(/^Draw \(.*\)$/i, "Draw"), outs: [{ p: +parseList(m.outcomePrices)[0] || 0 }], vol: +m.volumeNum || +m.volume || 0 }; })
         .sort(function (a, b) { return b.outs[0].p - a.outs[0].p; }).slice(0, 8);
       else rows = ms.sort(function (a, b) { return (+b.volumeNum || 0) - (+a.volumeNum || 0); }).slice(0, 6).map(function (m) {
         var names = parseList(m.outcomes), ps = parseList(m.outcomePrices);
@@ -1061,20 +1081,32 @@ table.mkt .pct { font-weight: 500; flex: none; }
   async function fetchOdds(l, ev) {
     var s = sides(ev);
     if (!s.away.abbr || !s.home.abbr) return { none: true };
-    var evs = await getJSON(POLY + "/events?slug=" + encodeURIComponent([POLY_PRE[l.key], s.away.abbr, s.home.abbr, etDate(ev.date)].join("-").toLowerCase()));
-    var e = evs[0];
+    var events = await findPoly(l, ev, !l.slow);
+    // the main game event: the one holding the moneyline, not "More Markets"
+    var e = events.filter(function (x) { return (x.markets || []).some(function (m) { return m.sportsMarketType === "moneyline"; }); })[0] || events[0];
     if (!e) return { none: true };
-    var ml = (e.markets || []).filter(function (m) {
+    var ms = e.markets || [];
+    var two = ms.filter(function (m) {
       var o = parseList(m.outcomes);
-      return o.length === 2 && !/over|under|yes|no/i.test(o.join(" ")) && !/spread|o\/u|total|half|quarter|period|inning|1h|2h/i.test((m.question || "") + " " + (m.groupItemTitle || ""));
+      return o.length === 2 && !o.some(function (x) { return /^(over|under|yes|no)$/i.test(String(x).trim()); }) && !/spread|o\/u|total|half|quarter|period|inning|1h|2h/i.test((m.question || "") + " " + (m.groupItemTitle || ""));
     });
-    var m = ml.filter(function (x) { return x.sportsMarketType === "moneyline"; })[0] || ml.filter(function (x) { return norm(x.question) === norm(e.title); })[0] ||
-      ml.sort(function (a, b) { return (+b.volumeNum || 0) - (+a.volumeNum || 0); })[0];
-    if (!m) return { none: true };
-    var names = parseList(m.outcomes), ps = parseList(m.outcomePrices).map(Number), hi = ps[0] >= ps[1] ? 0 : 1;
-    if (!(ps[hi] > 0.5)) return { none: true };
-    var side = mentions(names[hi], s.home) ? "home" : mentions(names[hi], s.away) ? "away" : null;
-    return side ? { side: side, p: ps[hi] } : { none: true };
+    var m = two.filter(function (x) { return x.sportsMarketType === "moneyline"; })[0] || two.filter(function (x) { return norm(x.question) === norm(e.title); })[0] ||
+      two.sort(function (a, b) { return (+b.volumeNum || 0) - (+a.volumeNum || 0); })[0];
+    var best = null;
+    if (m) {
+      var names = parseList(m.outcomes), ps = parseList(m.outcomePrices).map(Number), hi = ps[0] >= ps[1] ? 0 : 1;
+      best = { label: names[hi], p: ps[hi] };
+      if (!(best.p > 0.5)) return { none: true };
+    } else {
+      // soccer: one yes/no market each for home win, draw and away win
+      ms.filter(function (x) { return x.sportsMarketType === "moneyline" || (e.negRisk && /^\[?"?yes/i.test(String(x.outcomes))); }).forEach(function (x) {
+        var p = +parseList(x.outcomePrices)[0] || 0, label = x.groupItemTitle || x.question || "";
+        if (!best || p > best.p) best = { label: label, p: p };
+      });
+      if (!best || /draw/i.test(best.label)) return { none: true };
+    }
+    var side = mentions(best.label, s.home) ? "home" : mentions(best.label, s.away) ? "away" : null;
+    return side ? { side: side, p: best.p } : { none: true };
   }
   function favMark(l, ev, side) {
     var o = odds.get(l.key + ":" + ev.id);
