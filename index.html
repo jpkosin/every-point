@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Agate</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.25-2141">
+<meta name="agate-version" content="2026.11.26-1213">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agate">
@@ -104,6 +104,7 @@ table.agate td { padding: 3px 6px; white-space: nowrap; vertical-align: middle; 
 table.agate tr.row { cursor: pointer; }
 table.agate tr.row:hover td { background: color-mix(in srgb, var(--rule) 25%, transparent); }
 table.agate tr.hot td { animation: hot 6s ease-out both; }
+table.agate tr.dv td { padding: 9px 0 1px; font-style: italic; font-size: 14px; color: var(--gray); border-bottom: 0; }
 td.tm { width: 1%; font-weight: 500; letter-spacing: 0.03em; }
 td.tm.a { padding-left: 0; }
 .sw { display: inline-block; width: 4px; height: 15px; margin-right: 6px; vertical-align: -2px; border-radius: 1px; }
@@ -372,7 +373,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       play: lp.text, pv: lp.scoreValue, down: sit.downDistanceText, media: media(c), venue: venue(c),
       teams: (c.competitors || []).map(function (x) {
         var tm = x.team || {}, rec = x.records || [];
-        return { id: tm.id, abbr: tm.abbreviation, name: tm.shortDisplayName || tm.name, full: tm.displayName, score: x.score, color: tm.color, alt: tm.alternateColor,
+        return { id: tm.id, abbr: tm.abbreviation, name: tm.shortDisplayName || tm.name, full: tm.displayName, score: x.score, color: tm.color, alt: tm.alternateColor, conf: tm.conferenceId,
           home: x.homeAway === "home", record: rec[0] ? rec[0].summary : null, ls: (x.linescores || []).map(function (l) { return l.value; }) };
       }) };
   }
@@ -1247,16 +1248,71 @@ table.mkt .pct { font-weight: 500; flex: none; }
     return row;
   }
   // A table per state, a header row per league with its sparkline scale.
+  // Divisions and conferences: quiet italic subheads inside each league,
+  // a game filed under its home team's division. Pro leagues and college
+  // basketball read ESPN's group lists (kept a week on this device); college
+  // football carries a conference number on each team.
+  var CFB_CONF = { 1: "ACC", 4: "Big 12", 5: "Big Ten", 8: "SEC", 9: "Pac-12", 12: "Conference USA", 15: "MAC", 17: "Mountain West",
+    18: "FBS Independents", 37: "Sun Belt", 151: "American", 20: "Big Sky", 21: "Missouri Valley", 22: "Ivy League", 25: "Northeast",
+    27: "Patriot League", 28: "Pioneer League", 29: "OVC–Big South", 30: "Southland", 31: "SWAC", 48: "CAA", 177: "United Athletic" };
+  var GROUPED = { nfl: 1, nba: 1, wnba: 1, mlb: 1, nhl: 1, ncaam: 1, ncaaw: 1 };
+  var groupMaps = {}, groupLoading = {};
+  function loadGroups(l) {
+    if (groupMaps[l.key] || groupLoading[l.key]) return;
+    try {
+      var c = JSON.parse(localStorage.getItem("agate-groups-" + l.key) || "null");
+      if (c && Date.now() - c.at < 7 * 864e5) { groupMaps[l.key] = c.map; return; }
+    } catch (e) {}
+    groupLoading[l.key] = true;
+    getJSON(BASE + l.paths[0].split("?")[0] + "/groups").then(function (g) {
+      var map = {}, n = 0;
+      (function walk(list) {
+        (list || []).forEach(function (x) {
+          if (x.teams && x.teams.length) {
+            var name = x.name || x.abbreviation || "";
+            if (l.key === "nba" && !/division|conference/i.test(name)) name += " Division";
+            n++;
+            x.teams.forEach(function (t) { map[String(t.id)] = [name, n]; });
+          }
+          walk(x.children);
+        });
+      })(g.groups);
+      groupMaps[l.key] = map;
+      try { localStorage.setItem("agate-groups-" + l.key, JSON.stringify({ at: Date.now(), map: map })); } catch (e) {}
+      render();
+    }).catch(function () { groupMaps[l.key] = {}; });
+  }
+  function groupOf(l, ev) {
+    var s = sides(ev);
+    if (l.key === "ncaaf") {
+      var c = CFB_CONF[s.home.conf] || CFB_CONF[s.away.conf];
+      return c ? [c, +(s.home.conf in CFB_CONF ? s.home.conf : s.away.conf)] : ["Other", 9999];
+    }
+    var m = groupMaps[l.key];
+    if (!m) return null;
+    return m[String(s.home.id)] || m[String(s.away.id)] || ["Other", 9999];
+  }
   function agate(items, state) {
     var t = h("table", { class: "agate" }), byL = {};
     items.forEach(function (x) { (byL[x.l.key] = byL[x.l.key] || []).push(x); });
     LEAGUES.forEach(function (l) {
       var xs = byL[l.key];
       if (!xs) return;
-      var scale = leagueScale(l), cols = state === "pre" ? 2 : 7;
+      var scale = leagueScale(l), cols = state === "pre" ? 2 : 7, rows = [];
+      if (GROUPED[l.key]) loadGroups(l);
+      var grouped = l.key === "ncaaf" || (GROUPED[l.key] && groupMaps[l.key] && Object.keys(groupMaps[l.key]).length);
+      if (grouped) {
+        // stable sort by group, keeping the section's own order within each
+        xs = xs.map(function (x, i) { return { x: x, i: i, g: groupOf(l, x.ev) }; })
+          .sort(function (a, b) { return a.g[1] - b.g[1] || a.i - b.i; });
+        var cur = null;
+        xs.forEach(function (o) {
+          if (o.g[0] !== cur) { cur = o.g[0]; rows.push(h("tr", { class: "dv" }, [h("td", { colspan: String(cols), text: cur })])); }
+          rows.push(state === "pre" ? upRow(l, o.x.ev) : gameRow(l, o.x.ev, scale));
+        });
+      } else rows = xs.map(function (x) { return state === "pre" ? upRow(l, x.ev) : gameRow(l, x.ev, scale); });
       t.append(h("tbody", null, [h("tr", null, [h("th", { class: "lg", colspan: String(cols), scope: "colgroup" }, [
-        l.title || l.label, state === "pre" ? null : h("span", { text: "margin scale ±" + scale })])])].concat(
-        xs.map(function (x) { return state === "pre" ? upRow(l, x.ev) : gameRow(l, x.ev, scale); }))));
+        l.title || l.label, state === "pre" ? null : h("span", { text: "margin scale ±" + scale })])])].concat(rows)));
     });
     return t;
   }
