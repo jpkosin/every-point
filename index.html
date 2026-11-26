@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1236">
+<meta name="agate-version" content="2026.11.26-1239">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -52,8 +52,8 @@ header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items:
 header button { -webkit-app-region: no-drag; }
 .app header { padding-left: 64px; }
 /* ScoreCard set tight, as a wordmark: the whole word drawn in by 3.5% of an
-   em, the e–C join closed a further 2% so the two halves read as one word. */
-h1 .sc-s { color: var(--home); margin-right: -0.02em; }
+   em, with a hair of space (a tenth of an em) where the red Score meets Card. */
+h1 .sc-s { color: var(--home); margin-right: 0.1em; }
 h1 { font-kerning: normal; font-feature-settings: "kern" 1, "liga" 1; }
 h1 { grid-column: 1 / -1; margin: 0 0 0 -0.04em; padding-bottom: 6px; border-bottom: 1px solid var(--ink); font-weight: 500; font-size: clamp(56px, 15vw, 80px); line-height: 1.18; letter-spacing: -0.035em; }
 .status { font-style: italic; color: var(--gray); font-size: 15px; padding: 7px 0 0; min-width: 0; }
