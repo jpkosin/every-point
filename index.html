@@ -165,6 +165,8 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dmid { text-align: center; color: var(--gray); font-style: italic; padding-bottom: 8px; }
 .dmid .lg { display: block; font-style: normal; letter-spacing: 0.08em; font-size: 14px; color: var(--ink); }
 .dmid .live { display: block; font-style: normal; color: var(--ink); font-weight: 500; }
+.where { margin: -4px 0 0; display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 15px; color: var(--ink); }
+.where .wk b { font-weight: 400; font-style: italic; color: var(--gray); margin-right: 6px; }
 .driver canvas { display: block; width: 100%; height: 200px; }
 .dnote { margin: 0; color: var(--gray); font-style: italic; }
 .dnote.err { color: var(--home); }
@@ -315,7 +317,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
         var ab = a.abbreviation || (a.lastName || (nm ? nm.split(" ").pop() : "?")).slice(0, 3).toUpperCase();
         return { pos: x.order, n: nm, a: ab, t: (x.vehicle || {}).manufacturer || (x.team || {}).displayName };
       });
-      return { id: c.id, name: ty.abbreviation || ty.text || "Session", date: c.date || c.startDate, state: t.state, detail: t.shortDetail || t.detail, results: res };
+      return { id: c.id, name: ty.abbreviation || ty.text || "Session", date: c.date || c.startDate, state: t.state, detail: t.shortDetail || t.detail, results: res, media: media(c) };
     }).sort(function (a, b) { return String(a.date || "").localeCompare(String(b.date || "")); });
     var states = sessions.map(function (x) { return x.state; });
     var state = states.indexOf("in") >= 0 ? "in" : states.length && states.every(function (x) { return x === "post"; }) ? "post" : "pre";
@@ -323,10 +325,28 @@ table.mkt .pct { font-weight: 500; flex: none; }
     return { id: e.id, date: e.date, race: true, name: e.name || e.shortName, state: state, sessions: sessions, teams: [],
       circuit: ci.fullName ? { name: ci.fullName, city: ad.city, country: ad.country } : null };
   }
+  // Where to watch or listen: ESPN's per-market listings (TV, streaming,
+  // radio; national or a team's home market), else its plain network names.
+  function media(c) {
+    var out = [], seen = {};
+    (c.geoBroadcasts || []).forEach(function (b) {
+      var name = (b.media || {}).shortName || (b.media || {}).name, kind = (b.type || {}).shortName || "TV", mkt = (b.market || {}).type || "";
+      if (!name || seen[kind + name]) return;
+      seen[kind + name] = 1; out.push({ kind: kind, name: name, mkt: mkt });
+    });
+    if (!out.length) (c.broadcasts || []).forEach(function (b) {
+      (b.names || []).forEach(function (n) { if (!seen["TV" + n]) { seen["TV" + n] = 1; out.push({ kind: "TV", name: n, mkt: b.market || "" }); } });
+    });
+    return out;
+  }
+  function venue(c) {
+    var v = c.venue || {}, a = v.address || {};
+    return v.fullName ? [v.fullName, a.city, a.state || a.country].filter(Boolean).join(", ") : null;
+  }
   function game(e) {
     var c = (e.competitions || [{}])[0] || {}, st = e.status || {}, t = st.type || {}, sit = c.situation || {}, lp = sit.lastPlay || {};
     return { id: e.id, date: e.date, state: t.state, detail: t.shortDetail, clock: st.clock, period: st.period,
-      play: lp.text, pv: lp.scoreValue, down: sit.downDistanceText,
+      play: lp.text, pv: lp.scoreValue, down: sit.downDistanceText, media: media(c), venue: venue(c),
       teams: (c.competitors || []).map(function (x) {
         var tm = x.team || {}, rec = x.records || [];
         return { id: tm.id, abbr: tm.abbreviation, name: tm.shortDisplayName || tm.name, full: tm.displayName, score: x.score, color: tm.color, alt: tm.alternateColor,
@@ -1271,6 +1291,24 @@ table.mkt .pct { font-weight: 500; flex: none; }
     return sc;
   }
 
+  // "TV  CBS · Paramount+ (Rams) — Radio  KCSP (Chiefs)" and the venue.
+  function whereLine(list, ev, place) {
+    if ((!list || !list.length) && !place) return "";
+    var s = ev && ev.teams && ev.teams.length ? sides(ev) : null, order = ["TV", "Streaming", "Radio"], groups = {};
+    (list || []).forEach(function (m) { var k = /radio/i.test(m.kind) ? "Radio" : /stream|web|internet/i.test(m.kind) ? "Streaming" : "TV"; (groups[k] = groups[k] || []).push(m); });
+    var kids = [];
+    order.forEach(function (k) {
+      if (!groups[k]) return;
+      var names = groups[k].map(function (m) {
+        var who = s && /home/i.test(m.mkt) ? s.home : s && /away/i.test(m.mkt) ? s.away : null;
+        return m.name + (who ? " (" + (who.name || who.abbr) + ")" : "");
+      });
+      kids.push(h("span", { class: "wk" }, [h("b", { text: k }), names.join(" · ")]));
+    });
+    if (place) kids.push(h("span", { class: "wk" }, [h("b", { text: "At" }), place]));
+    return h("p", { class: "where" }, kids);
+  }
+
   // F1 weekend page: every session, newest first, with its full order.
   function renderRace(d, l, ev) {
     var back = h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } });
@@ -1279,6 +1317,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     d.replaceChildren(back,
       h("div", { class: "dhead", style: "grid-template-columns:minmax(0,1fr)" }, [h("div", { class: "dteam" }, [
         h("span", { class: "nm", text: "Formula 1" + (ev.example ? ", example" : "") }), h("span", { class: "big", style: "font-size:clamp(34px,6vw,52px)", text: ev.name || "Grand Prix" })])]),
+      whereLine((currentSession(ev) || {}).media, null, ev.circuit ? [ev.circuit.name, ev.circuit.city, ev.circuit.country].filter(Boolean).join(", ") : null),
       h("div", { class: "racetop" }, [trackFig(ev, true), standingsBlock()]),
       h("div", { class: "markets", id: "dmarkets" }),
       h("div", { class: "teams-box" }, ss.map(function (se) {
@@ -1305,7 +1344,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var bx = box.data;
     if (!$("dhead")) {
       d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { id: "dhead" }), h("div", { id: "driver" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+        h("div", { id: "dhead" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
       renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
@@ -1320,6 +1359,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       h("div", { class: "dmid" }, [h("span", { class: "lg", text: (ev && ev.example ? "Example. " : "") + l.label }),
         state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" })]),
       h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
+    $("dwhere").replaceChildren(ev ? whereLine(ev.media, ev, ev.venue) : "");
     var dr = $("driver"), hs = ev ? hist.get(l.key + ":" + ev.id) : null;
     if (ev && hs && state !== "pre") {
       dr.className = "driver";
