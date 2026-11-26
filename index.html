@@ -31,6 +31,7 @@
   --home: light-dark(#9b2d26, #e3867c);
   --away: light-dark(#2e5a87, #8fb5e2);
   --hot: light-dark(#fff0a0, #4b4220);
+  --star: light-dark(#b07d00, #f2c64b);
   --serif: "EB Garamond", "Palatino", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
 :root[data-theme=light] { color-scheme: light; }
@@ -95,7 +96,9 @@ table.agate tr.hot td { animation: hot 6s ease-out both; }
 td.tm { width: 1%; font-weight: 500; letter-spacing: 0.03em; }
 td.tm.a { padding-left: 0; }
 .sw { display: inline-block; width: 4px; height: 15px; margin-right: 6px; vertical-align: -2px; border-radius: 1px; }
-td.tm .ico { width: 18px; height: 20px; vertical-align: -3px; }
+.fav { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; color: var(--star); font-weight: 400; font-size: 12px; vertical-align: 1px; }
+.fav svg { width: 12px; height: 12px; }
+.fav span { color: var(--gray); }
 td.sc { width: 1%; text-align: right; font-size: 18px; color: var(--gray); }
 td.sc.lead { color: var(--ink); font-weight: 600; }
 td.sc.h { text-align: left; }
@@ -116,7 +119,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 @media (max-width: 560px) {
   td.sp { width: 70px; padding: 2px 3px; } td.sp canvas { width: 64px; }
   table.agate td.st { white-space: normal; min-width: 64px; line-height: 1.2; }
-  td.tm .ico { width: 14px; }
+  .fav span { display: none; }
   td.mu .rec { display: none; }
   table.agate td { padding: 3px 3px; }
 }
@@ -625,7 +628,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
         feed.unshift({ at: now, league: c.league, badge: "+" + s.delta, who: s.team.abbr || "?", side: side, kind: kind, color: tcs.team ? tcs[side] : null,
           line: scoreline(c.ev), detail: c.ev.detail || "", fresh: true });
         rugEvents.push({ at: now, w: weight(c.league.sport, s.delta), side: side });
-        if (prefs.bells[c.league.key] || prefs.stars[c.league.key + ":" + s.team.id]) {
+        if (prefs.bells[c.league.key]) {
           var play = c.ev.pv > 0 && c.ev.play ? " · " + c.ev.play : "";
           alerts.push(c.league.label + " · " + (s.team.abbr || s.team.name) + " +" + s.delta + " " + kind +
             "\n" + scoreline(c.ev) + (c.ev.detail ? " · " + c.ev.detail : "") + play);
@@ -962,16 +965,61 @@ table.mkt .pct { font-weight: 500; flex: none; }
           onclick: function () { prefs.league = l.key; savePrefs(); render(); } }, [l.label, countEl(l.key)]),
         d.error && mode === "live" ? h("span", { class: "err", title: d.error, text: "(error)" }) : null,
         h("button", { class: "ico", type: "button", "aria-pressed": String(prefs.bells[l.key]), "aria-label": l.label + " alerts",
-          title: prefs.bells[l.key] ? l.label + " alerts on" : l.label + " alerts off (starred teams still alert)",
+          title: prefs.bells[l.key] ? l.label + " alerts on" : l.label + " alerts off",
           onclick: function () { prefs.bells[l.key] = !prefs.bells[l.key]; savePrefs(); renderLeagues(); } },
           [svg(prefs.bells[l.key] ? BELL : BELL_OFF)])]));
     });
   }
-  function starBtn(l, t) {
-    var key = l.key + ":" + t.id, on = !!prefs.stars[key];
-    return h("button", { class: "ico", type: "button", "aria-pressed": String(on), "aria-label": (on ? "Unstar " : "Star ") + (t.full || t.name || "team"),
-      title: on ? "Starred: always alerts, listed first" : "Star to always get its alerts",
-      onclick: function (e) { e.stopPropagation(); if (on) delete prefs.stars[key]; else prefs.stars[key] = true; savePrefs(); render(); } }, [svg(STAR)]);
+  // The star: Polymarket's favourite to win, from the game's moneyline
+  // market, for games not yet over. Fetched a few at a time and cached.
+  var odds = new Map(), oddsQueue = [], oddsBusy = 0, oddsRender = null;
+  function wantOdds() {
+    var now = Date.now();
+    LEAGUES.forEach(function (l) {
+      if (l.race || !POLY_PRE[l.key] || (prefs.league !== "all" && prefs.league !== l.key)) return;
+      ((data[l.key] || {}).events || []).forEach(function (ev) {
+        if (ev.example || ev.state === "post") return;
+        var k = l.key + ":" + ev.id, o = odds.get(k), ttl = o && o.none ? 1800e3 : ev.state === "in" ? 60e3 : 300e3;
+        if ((o && now - o.at < ttl) || oddsQueue.some(function (q) { return q.k === k; })) return;
+        oddsQueue.push({ k: k, l: l, ev: ev });
+      });
+    });
+    pumpOdds();
+  }
+  function pumpOdds() {
+    while (oddsBusy < 4 && oddsQueue.length) {
+      var q = oddsQueue.shift();
+      oddsBusy++;
+      (function (q) {
+        fetchOdds(q.l, q.ev).then(function (r) { odds.set(q.k, Object.assign({ at: Date.now() }, r)); })
+          .catch(function () { odds.set(q.k, { at: Date.now(), none: true }); })
+          .then(function () { oddsBusy--; clearTimeout(oddsRender); oddsRender = setTimeout(function () { if (!view) render(); }, 400); pumpOdds(); });
+      })(q);
+    }
+  }
+  async function fetchOdds(l, ev) {
+    var s = sides(ev);
+    if (!s.away.abbr || !s.home.abbr) return { none: true };
+    var evs = await getJSON(POLY + "/events?slug=" + encodeURIComponent([POLY_PRE[l.key], s.away.abbr, s.home.abbr, etDate(ev.date)].join("-").toLowerCase()));
+    var e = evs[0];
+    if (!e) return { none: true };
+    var ml = (e.markets || []).filter(function (m) {
+      var o = parseList(m.outcomes);
+      return o.length === 2 && !/over|under|yes|no/i.test(o.join(" ")) && !/spread|o\/u|total|half|quarter|period|inning|1h|2h/i.test((m.question || "") + " " + (m.groupItemTitle || ""));
+    });
+    var m = ml.filter(function (x) { return x.sportsMarketType === "moneyline"; })[0] || ml.filter(function (x) { return norm(x.question) === norm(e.title); })[0] ||
+      ml.sort(function (a, b) { return (+b.volumeNum || 0) - (+a.volumeNum || 0); })[0];
+    if (!m) return { none: true };
+    var names = parseList(m.outcomes), ps = parseList(m.outcomePrices).map(Number), hi = ps[0] >= ps[1] ? 0 : 1;
+    if (!(ps[hi] > 0.5)) return { none: true };
+    var side = mentions(names[hi], s.home) ? "home" : mentions(names[hi], s.away) ? "away" : null;
+    return side ? { side: side, p: ps[hi] } : { none: true };
+  }
+  function favMark(l, ev, side) {
+    var o = odds.get(l.key + ":" + ev.id);
+    if (!o || o.none || o.side !== side || ev.state === "post") return null;
+    var pct = Math.round(o.p * 100) + "%";
+    return h("span", { class: "fav", title: "Polymarket's favourite to win: " + pct }, [svg(STAR), h("span", { text: pct })]);
   }
   function whenText(date) {
     var d = new Date(date);
@@ -980,7 +1028,6 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
     return d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + ", " + time;
   }
-  function hasStar(x) { return (x.ev.teams || []).some(function (t) { return !!prefs.stars[x.l.key + ":" + t.id]; }); }
 
   var pending = [];
   function gameRow(l, ev, scale) {
@@ -994,11 +1041,11 @@ table.mkt .pct { font-weight: 500; flex: none; }
       "aria-label": (s.away.full || s.away.abbr || "") + " at " + (s.home.full || s.home.abbr || "") + ": game page",
       onclick: function () { openGame(l, ev); },
       onkeydown: function (e) { if (e.key === "Enter" && e.target === row) openGame(l, ev); } }, [
-      h("td", { class: "tm a", title: (s.away.full || "") + (s.away.record ? " (" + s.away.record + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.away }), s.away.abbr || "?", starBtn(l, s.away)]),
+      h("td", { class: "tm a", title: (s.away.full || "") + (s.away.record ? " (" + s.away.record + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.away }), s.away.abbr || "?", favMark(l, ev, "away")]),
       h("td", { class: "sc" + (a > hh ? " lead" : ""), text: a == null ? "" : String(a) }),
       h("td", { class: "sp" }, [canvas]),
       h("td", { class: "sc h" + (hh > a ? " lead" : ""), text: hh == null ? "" : String(hh) }),
-      h("td", { class: "tm", title: (s.home.full || "") + (s.home.record ? " (" + s.home.record + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.home }), s.home.abbr || "?", starBtn(l, s.home)]),
+      h("td", { class: "tm", title: (s.home.full || "") + (s.home.record ? " (" + s.home.record + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.home }), s.home.abbr || "?", favMark(l, ev, "home")]),
       h("td", { class: "st" + (ev.state === "in" ? " live" : ""), text: (ev.example ? "Example. " : "") + (ev.detail || (ev.state === "post" ? "Final" : "")) }),
       h("td", { class: "lp", title: play || null, text: play })]);
     if (hot) row.querySelectorAll("td").forEach(function (td) { td.style.animationDelay = "-" + ((now - lastMark.at) / 1000).toFixed(2) + "s"; });
@@ -1011,9 +1058,9 @@ table.mkt .pct { font-weight: 500; flex: none; }
       onclick: function () { openGame(l, ev); }, onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
       h("td", { class: "when", text: whenText(ev.date) }),
       h("td", { class: "mu", title: (s.away.full || "") + " at " + (s.home.full || "") }, [
-        s.away.abbr || "?", s.away.record ? h("span", { class: "rec", text: s.away.record }) : null,
+        s.away.abbr || "?", favMark(l, ev, "away"), s.away.record ? h("span", { class: "rec", text: s.away.record }) : null,
         h("span", { class: "at", text: "at" }),
-        s.home.abbr || "?", s.home.record ? h("span", { class: "rec", text: s.home.record }) : null,
+        s.home.abbr || "?", favMark(l, ev, "home"), s.home.record ? h("span", { class: "rec", text: s.home.record }) : null,
         ev.example ? h("span", { class: "rec", text: " (example)" }) : null])]);
     return row;
   }
@@ -1073,15 +1120,13 @@ table.mkt .pct { font-weight: 500; flex: none; }
       if (!items.length) return;
       any = true;
       items.sort(function (a, b) {
-        var sa = hasStar(a), sb = hasStar(b);
-        if (sa !== sb) return sa ? -1 : 1;
         if (g[0] === "pre") return new Date(a.ev.date) - new Date(b.ev.date);
         if (g[0] === "post") return new Date(b.ev.date) - new Date(a.ev.date);
         return 0;
       });
       main.append(h("section", { class: "group" }, [
         h("h2", null, [g[1], h("span", { class: "c", text: String(items.length) })]),
-        g[0] !== "pre" && !main.querySelector(".note") ? h("p", { class: "note", text: "Each line traces the margin over the game: above the rule the home team leads, below it the visitors, each in its team's colour. Dots are scores seen live; one scale per league." }) : null,
+        g[0] !== "pre" && !main.querySelector(".note") ? h("p", { class: "note", text: "Each line traces the margin over the game: above the rule the home team leads, below it the visitors, each in its team's colour. Dots are scores seen live; one scale per league. ★ marks Polymarket's favourite to win." }) : null,
         agate(items, g[0])]));
     });
     if (!any) {
@@ -1089,7 +1134,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard " + (isToday() ? "right now." : "that day.")) : "Loading scores…" }));
     }
     requestAnimationFrame(function () { pending.forEach(function (f) { f(); }); pending = []; });
-    renderFeed(); drawRug();
+    renderFeed(); drawRug(); wantOdds();
   }
   function renderFeed() {
     var ol = $("feed");
