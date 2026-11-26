@@ -1,0 +1,30 @@
+name: probe
+on:
+  push:
+    paths: [".github/workflows/probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: How often does ESPN's live scoreboard change?
+        shell: python
+        run: |
+          import json, time, hashlib, urllib.request
+          U = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+          last, t0 = None, time.time()
+          while time.time() - t0 < 150:
+            t = time.time()
+            r = urllib.request.urlopen(urllib.request.Request(U + "?_=" + str(int(t*1000)), headers={"User-Agent": "Mozilla/5.0"}), timeout=10)
+            raw = r.read(); d = json.loads(raw)
+            live = [e for e in d.get("events", []) if e["status"]["type"]["state"] == "in"]
+            sig = [(e["shortName"], [c["score"] for c in e["competitions"][0]["competitors"]], e["status"]["displayClock"], e["status"]["period"]) for e in live]
+            hsig = hashlib.md5(json.dumps(sig).encode()).hexdigest()[:8]
+            if hsig != last:
+              print(f"{t - t0:6.1f}s  CHANGED  cc={r.headers.get('Cache-Control')} age={r.headers.get('Age')} bytes={len(raw)}  {sig}")
+              last = hsig
+            time.sleep(2)
+          print("done")
+          for u in ["https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=500",
+                    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"]:
+            r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Accept-Encoding": "gzip"}), timeout=20)
+            print(u, "gzip bytes", len(r.read()), "cc", r.headers.get("Cache-Control"))
