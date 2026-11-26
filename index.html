@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1613">
+<meta name="agate-version" content="2026.11.26-1618">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -248,6 +248,8 @@ table.stats .r { text-align: left; }
   background: var(--ink); color: var(--bg); font-size: 17px; padding: 8px 18px 9px; min-height: 44px; border-radius: 2px;
   box-shadow: 0 0 0 5px var(--bg); }
 .back:hover { opacity: 0.85; }
+/* On phones iOS blurs a strip below the status bar; stick the back button below it. */
+@media (pointer: coarse) { .back { top: calc(36px + env(safe-area-inset-top, 0px)); } }
 .days { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 8px; }
 .days .arrow { min-width: 36px; min-height: 44px; font-size: 26px; line-height: 1; color: var(--gray); }
 .days .arrow:hover { color: var(--ink); }
