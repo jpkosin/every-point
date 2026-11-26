@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Agate</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.25-2132">
+<meta name="agate-version" content="2026.11.25-2136">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agate">
@@ -80,6 +80,10 @@ h1 { grid-column: 1 / -1; margin: 0 0 0 -0.04em; padding-bottom: 6px; border-bot
 .league .pick:hover, .league.on .pick { color: var(--ink); }
 .league.on .pick { text-decoration: underline; text-underline-offset: 5px; }
 .league .err { color: var(--home); font-size: 14px; }
+.league.off .pick { color: color-mix(in srgb, var(--gray) 50%, var(--bg)); }
+.league.off .pick .n { font-style: italic; }
+.league.off.on .pick { color: var(--gray); }
+.league.off .ico { visibility: hidden; }
 .ico { color: var(--rule); display: inline-grid; place-items: center; width: 22px; height: 30px; align-self: center; }
 .ico svg { width: 13px; height: 13px; }
 .ico:hover { color: var(--gray); }
@@ -370,15 +374,32 @@ table.mkt .pct { font-weight: 500; flex: none; }
       }) };
   }
   async function getLeague(l, d) {
-    var events = [], seen = {}, errors = [];
+    var events = [], seen = {}, errors = [], season = null;
     await Promise.all(l.paths.map(async function (p) {
       var url = p.indexOf("?") >= 0 ? BASE + p.replace("?", "/scoreboard?") : BASE + p + "/scoreboard";
       if (d) url += (url.indexOf("?") >= 0 ? "&" : "?") + "dates=" + d;
-      try { (await getJSON(url)).events.forEach(function (e) { if (!seen[e.id]) { seen[e.id] = 1; events.push(e); } }); }
+      try {
+        var j = await getJSON(url);
+        if (!season && j.leagues && j.leagues[0]) season = j.leagues[0].season || null;
+        (j.events || []).forEach(function (e) { if (!seen[e.id]) { seen[e.id] = 1; events.push(e); } });
+      }
       catch (e) { errors.push(String((e && e.message) || e)); }
     }));
     if (errors.length && !events.length) return { error: errors[0] };
-    return { events: events.map(l.race ? race : game) };
+    var st = (season && season.type) || {};
+    return { events: events.map(l.race ? race : game),
+      season: season ? { off: +st.type === 4 || /off/i.test(st.name || ""), start: season.startDate, end: season.endDate } : null };
+  }
+  // A league is out of season when ESPN says so, or the day is outside the
+  // season's dates; it is greyed out and listed last, with its return date.
+  function offSeason(l) {
+    var se = (data[l.key] || {}).season, t = dayDate().getTime() + 12 * 3600e3;
+    if (!se) return false;
+    return se.off || (se.end && t > Date.parse(se.end)) || (se.start && t < Date.parse(se.start));
+  }
+  function returnDate(l) {
+    var se = (data[l.key] || {}).season, t = Date.parse(se && se.start);
+    return t && t > Date.now() ? new Date(t).toLocaleDateString([], { month: "long", year: "numeric" }) : null;
   }
   // One game's box score from ESPN's summary: each team's stat groups and
   // players. Soccer's players come from the rosters.
@@ -644,7 +665,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       var got = res[l.key];
       if (!got) return;
       if (got.error) { data[l.key] = Object.assign({}, data[l.key] || {}, { error: got.error }); return; }
-      data[l.key] = { events: got.events || [] };
+      data[l.key] = { events: got.events || [], season: got.season };
       got.events.forEach(function (ev) {
         if (l.race) { raceChanges(l, ev, changes); return; }
         var scored = [];
@@ -1039,11 +1060,12 @@ table.mkt .pct { font-weight: 500; flex: none; }
     nav.replaceChildren(h("div", { class: "league" + (prefs.league === "all" ? " on" : "") }, [
       h("button", { class: "pick", type: "button", "aria-pressed": String(prefs.league === "all"),
         onclick: function () { prefs.league = "all"; savePrefs(); render(); } }, ["All", countEl(null)])]));
-    LEAGUES.forEach(function (l) {
-      var on = prefs.league === l.key, d = data[l.key] || {};
-      nav.append(h("div", { class: "league" + (on ? " on" : "") }, [
-        h("button", { class: "pick", type: "button", "aria-pressed": String(on), title: l.title || null,
-          onclick: function () { prefs.league = l.key; savePrefs(); render(); } }, [l.label, countEl(l.key)]),
+    LEAGUES.filter(function (l) { return !offSeason(l); }).concat(LEAGUES.filter(offSeason)).forEach(function (l) {
+      var on = prefs.league === l.key, d = data[l.key] || {}, off = offSeason(l), back = off && returnDate(l);
+      nav.append(h("div", { class: "league" + (on ? " on" : "") + (off ? " off" : "") }, [
+        h("button", { class: "pick", type: "button", "aria-pressed": String(on),
+          title: (l.title || l.label) + (off ? ": off-season" + (back ? ", back " + back : "") : ""),
+          onclick: function () { prefs.league = l.key; savePrefs(); render(); } }, [l.label, off ? h("span", { class: "n", text: "off" }) : countEl(l.key)]),
         d.error && mode === "live" ? h("span", { class: "err", title: d.error, text: "(error)" }) : null,
         h("button", { class: "ico", type: "button", "aria-pressed": String(prefs.bells[l.key]), "aria-label": l.label + " alerts",
           title: prefs.bells[l.key] ? l.label + " alerts on" : l.label + " alerts off",
@@ -1224,7 +1246,9 @@ table.mkt .pct { font-weight: 500; flex: none; }
     });
     if (!any) {
       var which = prefs.league === "all" ? "any league" : BY_KEY[prefs.league].label;
-      main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard " + (isToday() ? "right now." : "that day.")) : "Loading scores…" }));
+      var offL = prefs.league !== "all" && offSeason(BY_KEY[prefs.league]) && BY_KEY[prefs.league];
+      if (offL && !lastError) main.append(h("p", { class: "empty", text: (offL.title || offL.label) + " is in its off-season." + (returnDate(offL) ? " It's back in " + returnDate(offL) + "." : "") }));
+      else main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard " + (isToday() ? "right now." : "that day.")) : "Loading scores…" }));
     }
     requestAnimationFrame(function () { pending.forEach(function (f) { f(); }); pending = []; });
     renderFeed(); drawRug(); wantOdds();
