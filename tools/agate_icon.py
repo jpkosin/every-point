@@ -59,5 +59,5 @@ def draw(n=1024, out=None, wght=800):
     if out: im.save(out)
     return im
 if __name__ == "__main__":
-    for n in (180, 192, 512): draw(n, "icon-%d.png" % n)
-    draw(64, "favicon.png")
+    for n in (180, 192, 512): draw(n, "agate-%d.png" % n)
+    draw(64, "agate-favicon.png")
