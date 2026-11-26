@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1546">
+<meta name="agate-version" content="2026.11.26-1550">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="manifest" href="manifest.json?v=sc">
 <link rel="apple-touch-icon" href="sc-180.png">
 <link rel="apple-touch-icon" sizes="180x180" href="sc-180.png">
@@ -60,13 +60,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--ink); 
 header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 16px; -webkit-app-region: drag; }
 header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-ink);
   margin: 0 calc(50% - 50vw); padding: 14px calc(50vw - 50%) 0; }
-/* In Safari the band starts below the status bar, where the browser blurs
-   and fades the page; there the paper shows instead. Added to the home
-   screen, nothing fades, so the band runs up under the clock. */
-@media (display-mode: standalone) {
-  header .band { margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
-}
-.standalone header .band { margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+/* iOS blurs and fades whatever a page draws under the status bar, in Safari
+   and in home-screen apps alike, so nothing is drawn there. In Safari the
+   paper shows under it; a home-screen app gets iOS's own solid black status
+   bar, and the band turns pure black to join it seamlessly. */
+@media (display-mode: standalone) { :root { --band: #000; } }
+.standalone { --band: #000; }
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
 .livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
@@ -1981,7 +1980,7 @@ header { view-transition-name: masthead; }
     var dark = t ? t === "dark" : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     // Safari tints its bars to match the page's top edge: the band at home
     // screen, the paper in the browser.
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE ? (dark ? "#26241f" : "#1d1c1a") : (dark ? "#151413" : "#fffff8"));
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE ? "#000000" : (dark ? "#151413" : "#fffff8"));
   }
   $("theme").addEventListener("click", function () {
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
