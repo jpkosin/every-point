@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Box &amp; Line</title>
+<title>Agate</title>
 <meta name="theme-color" content="#fffff8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Box &amp; Line">
+<meta name="apple-mobile-web-app-title" content="Agate">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -47,7 +47,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--ink); 
 header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 22px; padding: 26px 0 6px; -webkit-app-region: drag; }
 header button { -webkit-app-region: no-drag; }
 .app header { padding-left: 64px; }
-h1 .amp { color: var(--home); }
+h1 { font-kerning: normal; font-feature-settings: "kern" 1, "liga" 1; }
+h1 .kA { letter-spacing: -0.02em; }
 h1 { margin: 0; font-weight: 400; font-size: 40px; line-height: 1.05; letter-spacing: 0.01em; }
 .status { font-style: italic; color: var(--gray); font-size: 16px; }
 .status.err { color: var(--home); }
@@ -229,7 +230,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
 <div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i></div>
 <div class="wrap">
   <header>
-    <h1>Box <span class="amp">&amp;</span> Line</h1>
+    <h1><span class="kA">A</span>gate</h1>
     <span class="status" id="status">Starting</span>
     <div class="tools">
       <button class="link" id="alerts" type="button" hidden>Turn on alerts</button>
