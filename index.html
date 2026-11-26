@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1555">
+<meta name="agate-version" content="2026.11.26-1559">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -62,17 +62,13 @@ header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-i
   margin: 0 calc(50% - 50vw); padding: 14px calc(50vw - 50%) 0; }
 /* iOS blurs and fades whatever a page draws under the status bar, in Safari
    and in home-screen apps alike, so nothing is drawn there. In Safari the
-   paper shows under it; a home-screen app gets iOS's own solid black status
-   bar, and the band turns pure black to join it seamlessly. */
-@media (display-mode: standalone) { :root { --band: #000; } }
-.standalone { --band: #000; }
-/* iOS 26 ignores the status-bar style and tints that strip from the page itself:
-   paint it solid black, fixed, so nothing cream shows or scrolls under the clock. */
-html.standalone { background: #000; }
-html.standalone body { min-height: 100vh; }
-html.standalone::before { content: ""; position: fixed; top: 0; left: 0; right: 0;
-  height: env(safe-area-inset-top, 0px); background: #000; z-index: 100; pointer-events: none; }
-@media (display-mode: standalone) { html { background: #000; } }
+   paper shows under it. */
+/* iOS 26.1+ ignores the status-bar meta and paints the strip under the clock in the
+   BODY's background colour (WebKit bug 301756). So in the home-screen app the body
+   wears the masthead colour, and the cream page sits on the content wrapper instead. */
+html.standalone, html.standalone body { background: var(--band); }
+html.standalone .wrap { background: linear-gradient(var(--band) 0 env(safe-area-inset-top, 0px), var(--bg) 0); box-shadow: 0 0 0 100vmax var(--bg);
+  clip-path: inset(0 -100vmax); min-height: 100vh; }
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
 .livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
@@ -1987,7 +1983,7 @@ header { view-transition-name: masthead; }
     var dark = t ? t === "dark" : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     // Safari tints its bars to match the page's top edge: the band at home
     // screen, the paper in the browser.
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE ? "#000000" : (dark ? "#151413" : "#fffff8"));
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE ? (dark ? "#26241f" : "#1d1c1a") : (dark ? "#151413" : "#fffff8"));
   }
   $("theme").addEventListener("click", function () {
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
