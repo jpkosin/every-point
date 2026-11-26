@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
-<meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1451">
+<meta name="theme-color" content="#1d1c1a">
+<meta name="agate-version" content="2026.11.26-1507">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json?v=sc">
 <link rel="apple-touch-icon" href="sc-180.png">
 <link rel="apple-touch-icon" sizes="180x180" href="sc-180.png">
@@ -34,6 +34,11 @@
   --home: light-dark(#9b2d26, #e3867c);
   --away: light-dark(#2e5a87, #8fb5e2);
   --hot: light-dark(#fff0a0, #4b4220);
+  --band: light-dark(#1d1c1a, #26241f);
+  --band-ink: #fffff8;
+  --band-red: #e3867c;
+  --band-blue: #8fb5e2;
+  --band-gray: #a19c8f;
   --serif: "EB Garamond", "Palatino", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
 :root[data-theme=light] { color-scheme: light; }
@@ -48,15 +53,28 @@ button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--ink); 
 
 /* Masthead: the name large on its own line over a rule, then one dateline
    with the status left and the controls right, all on one left edge. */
-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 16px; padding: 18px 0 0; -webkit-app-region: drag; }
+/* Masthead: a dark band, like a stadium board, holding the name, the live
+   count and every score of the last half hour standing on its baseline;
+   beneath it, on the paper, one dateline with the controls. The band runs
+   to the screen's edges and under the phone's status bar. */
+header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 16px; -webkit-app-region: drag; }
+header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-ink);
+  margin: calc(-1 * env(safe-area-inset-top, 0px)) calc(50% - 50vw) 0;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(50vw - 50%) 0; }
+header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
+.livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
+header canvas#rug { display: block; width: 100%; height: 30px; margin-top: 8px; }
+header .rcap { display: flex; justify-content: space-between; font-size: 12px; font-style: italic; color: var(--band-gray); padding: 2px 0 7px; }
+header .rcap b { font-style: normal; color: var(--band-ink); font-weight: 500; }
 header button { -webkit-app-region: no-drag; }
 .app header { padding-left: 64px; }
 /* ScoreCard set tight, as a wordmark: the whole word drawn in by 3.5% of an
    em, with a hair of space (a tenth of an em) where the red Score meets Card. */
-h1 .sc-s { color: var(--home); margin-right: 0.1em; }
+h1 .sc-s { color: var(--band-red); margin-right: 0.1em; }
 h1 { font-kerning: normal; font-feature-settings: "kern" 1, "liga" 1; }
-h1 { grid-column: 1 / -1; margin: 0 0 0 -0.04em; padding-bottom: 6px; border-bottom: 1px solid var(--ink); font-weight: 500; font-size: clamp(56px, 15vw, 80px); line-height: 1.18; letter-spacing: -0.035em; }
-.status { font-style: italic; color: var(--gray); font-size: 15px; padding: 7px 0 0; min-width: 0; }
+h1 { margin: 0 0 0 -0.04em; color: var(--band-ink); font-weight: 500; font-size: clamp(40px, 11vw, 60px); line-height: 1.1; letter-spacing: -0.035em; }
+.status { font-style: italic; color: var(--gray); font-size: 15px; padding: 7px 0 2px; min-width: 0; }
 .status.err { color: var(--home); }
 .tools { display: flex; gap: 14px; }
 .tools .link { font-size: 15px; min-height: 36px; }
@@ -69,10 +87,8 @@ h1 { grid-column: 1 / -1; margin: 0 0 0 -0.04em; padding-bottom: 6px; border-bot
 .banner p { margin: 0; flex: 1 1 360px; font-style: italic; color: var(--gray); }
 .banner strong { font-style: normal; font-weight: 500; color: var(--ink); }
 
-.rug { margin: 12px 0 4px; }
-.rug .cap { font-size: 15px; color: var(--gray); font-style: italic; }
-.rug .cap b { font-style: normal; font-weight: 500; color: var(--ink); }
-.rug canvas { display: block; width: 100%; height: 54px; }
+header .tools { padding-top: 2px; }
+header + .banner, header ~ .days { margin-top: 4px; }
 
 .leagues { display: flex; flex-wrap: wrap; gap: 2px 20px; padding: 8px 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); }
 .league { display: flex; align-items: baseline; gap: 4px; }
@@ -280,10 +296,14 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
 </style>
 </head>
 <body>
-<div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i></div>
+<div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div>
 <div class="wrap">
   <header>
-    <h1><span class="sc-s">Score</span>Card</h1>
+    <div class="band">
+      <div class="row"><h1><span class="sc-s">Score</span>Card</h1><div class="livec" id="livec"></div></div>
+      <canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas>
+      <div class="rcap"><span id="rug-cap">every score, last 30 min</span><span>now</span></div>
+    </div>
     <span class="status" id="status">Starting</span>
     <div class="tools">
       <button class="link" id="alerts" type="button" hidden>Alerts</button>
@@ -292,10 +312,6 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
     </div>
   </header>
   <div class="banner" id="banner" hidden></div>
-  <div class="rug">
-    <div class="cap" id="rug-cap">Every score in the last 30 minutes</div>
-    <canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas>
-  </div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
   <nav class="leagues" id="leagues" aria-label="Leagues"></nav>
@@ -1166,41 +1182,33 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   function drawRug() {
     var c = document.getElementById("rug"), s = sizeCanvas(c);
     if (!s) return;
-    var p = pal(), g = s.g, W = s.w, H = s.h, base = H - 18, top = 4, now = Date.now();
+    var p = pal(), g = s.g, W = s.w, H = s.h, base = H - 1.5, top = 1, now = Date.now();
     var X = function (t) { return W - 1 - ((now - t) / RUG_MS) * (W - 2); };
-    g.strokeStyle = p.ink; g.lineWidth = 1; g.beginPath(); g.moveTo(0, base + 0.5); g.lineTo(W, base + 0.5); g.stroke();
-    g.font = "13px " + SERIF; g.fillStyle = p.gray; g.textBaseline = "top";
-    for (var m = 0; m <= 30; m += 5) {
-      var x = Math.round(W - 1 - (m / 30) * (W - 2)) + 0.5;
-      g.strokeStyle = p.gray; g.beginPath(); g.moveTo(x, base); g.lineTo(x, base + 3); g.stroke();
-      if (W < 420 && m % 10) continue;
-      g.textAlign = m === 0 ? "right" : m === 30 ? "left" : "center";
-      g.fillText(m === 0 ? "now" : m + " min ago", m === 0 ? W : m === 30 ? 0 : x, base + 4);
-    }
     var list = rugEvents.filter(function (e) { return now - e.at < RUG_MS; });
     list.forEach(function (e) {
       var x = Math.round(X(e.at)) + 0.5, hgt = (base - top) * (0.3 + 0.7 * Math.min(1, e.w));
-      g.strokeStyle = e.side === "home" ? p.home : e.side === "away" ? p.away : p.ink;
-      g.lineWidth = now - e.at < 8000 ? 2 : 1;
+      g.strokeStyle = e.side === "home" ? p.bred : e.side === "away" ? p.bblue : p.bink;
+      g.lineWidth = now - e.at < 8000 ? 2.2 : 1.3;
       g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - hgt); g.stroke();
     });
+    g.strokeStyle = p.bink; g.lineWidth = 1; g.beginPath(); g.moveTo(0, Math.round(base) + 0.5); g.lineTo(W, Math.round(base) + 0.5); g.stroke();
     var cap = document.getElementById("rug-cap");
-    if (W < 560) cap.replaceChildren("Scores in the last 30 minutes: ", h("b", { text: String(list.length) }));
-    else cap.replaceChildren("Every score in the last 30 minutes, ", h("b", { text: String(list.length) }),
-      ". Home teams in red, away in blue, height by size.");
+    cap.replaceChildren(h("b", { text: String(list.length) }), list.length === 1 ? " score in the last 30 minutes" : " scores in the last 30 minutes",
+      W >= 520 ? ", home in red, away in blue" : "");
   }
 
   // ---- Rendering ---------------------------------------------------------
   var $ = function (id) { return document.getElementById(id); };
   function renderStatus() {
-    var st = $("status");
+    var st = $("status"), lc = $("livec"), n0 = liveCount();
+    lc.replaceChildren.apply(lc, mode === "live" && isToday() ? (n0 ? [h("b", { text: String(n0) }), "live"] : ["no live games"]) : []);
     st.className = "status";
     if (mode !== "live") st.textContent = mode === "starting" ? "Starting" : "Not connected";
     else if (lastError) { st.className = "status err"; st.textContent = "Couldn't refresh: " + lastError; }
     else if (!isToday()) st.textContent = Object.keys(data).length ? "Scores for " + dayDate().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) : "Fetching scores";
     else if (updated) {
-      var s = Math.round((Date.now() - updated) / 1000), n = liveCount();
-      st.textContent = (n ? n + " live" : "No live games") + ", updated " + (s < 5 ? "just now" : s + " s ago");
+      var s = Math.round((Date.now() - updated) / 1000);
+      st.textContent = "Updated " + (s < 5 ? "just now" : s + " s ago");
     } else st.textContent = "Fetching scores";
   }
   function renderBanner() { $("banner").hidden = true; }
@@ -1848,7 +1856,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
     if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
     $("theme-v").textContent = t ? t[0].toUpperCase() + t.slice(1) : "Auto";
     var dark = t ? t === "dark" : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", dark ? "#151413" : "#fffff8");
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", dark ? "#26241f" : "#1d1c1a");
   }
   $("theme").addEventListener("click", function () {
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
