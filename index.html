@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1544">
+<meta name="agate-version" content="2026.11.26-1546">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -2005,7 +2005,7 @@ header { view-transition-name: masthead; }
   // to the app (and every 10 minutes) ask for version.json, bypassing caches,
   // and reload when a newer version is published.
   var VERSION = (document.querySelector('meta[name="agate-version"]') || {}).content || "dev";
-  $("foot").textContent = "ScoreCard, version " + VERSION + ". Scores from ESPN, markets from Polymarket, F1 results from Jolpica.";
+  $("foot").textContent = "ScoreCard, version " + VERSION + (STANDALONE ? ", running as a home-screen app" : ", running in the browser") + ". Scores from ESPN, markets from Polymarket, F1 results from Jolpica.";
   async function checkVersion() {
     if (VERSION === "dev") return;
     try {
