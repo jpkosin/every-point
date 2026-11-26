@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#1d1c1a">
-<meta name="agate-version" content="2026.11.26-1511">
+<meta name="agate-version" content="2026.11.26-1515">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -67,6 +67,18 @@ header .row { display: flex; align-items: baseline; justify-content: space-betwe
 /* The canvas is taken out of layout so its pixel size never feeds back
    into the grid's width. */
 header .band, header .row { min-width: 0; }
+header .pin { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin: 8px 0 0; padding: 7px 0 1px; border-top: 1px solid rgba(255, 255, 248, 0.18);
+  cursor: pointer; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; font-variant-numeric: lining-nums tabular-nums; }
+header .pin .side { display: inline-flex; align-items: baseline; gap: 7px; }
+header .pin .sw { width: 4px; height: 18px; align-self: center; margin: 0; }
+header .pin .ab { font-size: 18px; font-weight: 500; letter-spacing: 0.03em; }
+header .pin .n { font-size: 30px; line-height: 1; color: var(--band-gray); }
+header .pin .n.up { color: var(--band-ink); font-weight: 600; }
+header .pin .det { margin-left: auto; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
+header .pin.live .det { color: var(--band-ink); font-style: normal; }
+.status.note { color: var(--ink); }
+tr.row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+tr.row.pinned td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 6px; }
 header .rugbox { position: relative; height: 30px; margin-top: 8px; }
 header .rugbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 header .rcap { display: flex; justify-content: space-between; font-size: 12px; font-style: italic; color: var(--band-gray); padding: 2px 0 7px; }
@@ -305,6 +317,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   <header>
     <div class="band">
       <div class="row"><h1><span class="sc-s">Score</span>Card</h1><div class="livec" id="livec"></div></div>
+      <div class="pin" id="pin" role="button" tabindex="0" hidden></div>
       <div class="rugbox"><canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas></div>
       <div class="rcap"><span id="rug-cap">every score, last 30 min</span><span>now</span></div>
     </div>
@@ -1204,6 +1217,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   // ---- Rendering ---------------------------------------------------------
   var $ = function (id) { return document.getElementById(id); };
   function renderStatus() {
+    if (noteTimer && $("status").className.indexOf("note") >= 0) { var lc0 = $("livec"), n1 = liveCount(); lc0.replaceChildren.apply(lc0, n1 ? [h("b", { text: String(n1) }), "live"] : ["no live games"]); return; }
     var st = $("status"), lc = $("livec"), n0 = liveCount();
     lc.replaceChildren.apply(lc, mode === "live" && isToday() ? (n0 ? [h("b", { text: String(n0) }), "live"] : ["no live games"]) : []);
     st.className = "status";
@@ -1362,6 +1376,61 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
     return d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + ", " + time;
   }
 
+  // ---- Pinned game ---------------------------------------------------------
+  // Hold a game (or right-click it) to pin it to the band at the top; hold
+  // another to replace it; hold the pinned one, in the list or the band, to
+  // let it go. A tap still opens the game. The pin is kept on this device,
+  // with the last score seen, so it shows even before the scores load.
+  function pressable(el, onTap, onHold) {
+    var t = null, held = false, sx = 0, sy = 0;
+    el.addEventListener("pointerdown", function (e) {
+      if (e.button > 0) return;
+      held = false; sx = e.clientX; sy = e.clientY;
+      t = setTimeout(function () { t = null; held = true; onHold(); }, 480);
+    });
+    el.addEventListener("pointermove", function (e) { if (t && (Math.abs(e.clientX - sx) > 9 || Math.abs(e.clientY - sy) > 9)) { clearTimeout(t); t = null; } });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { el.addEventListener(n, function () { clearTimeout(t); t = null; }); });
+    el.addEventListener("click", function (e) { if (held) { held = false; e.preventDefault(); return; } if (!e.target.closest("button, a")) onTap(e); });
+    el.addEventListener("contextmenu", function (e) { e.preventDefault(); if (!held) onHold(); });
+  }
+  function isPinned(l, ev) { return !!(prefs.pin && prefs.pin.l === l.key && String(prefs.pin.id) === String(ev.id)); }
+  function snapOf(l, ev) {
+    var s = sides(ev), tc = teamColors(ev);
+    return { away: s.away.abbr, home: s.home.abbr, as: s.away.score, hs: s.home.score, ac: s.away.color, hc: s.home.color,
+      state: ev.state, detail: ev.state === "pre" ? whenText(ev.date) : ev.detail || "", lg: l.label };
+  }
+  var noteTimer = null;
+  function flashNote(text) {
+    var st = $("status"); st.textContent = text; st.className = "status note";
+    clearTimeout(noteTimer); noteTimer = setTimeout(function () { noteTimer = null; renderStatus(); }, 3500);
+  }
+  function togglePin(l, ev) {
+    if (l.race) return;
+    if (isPinned(l, ev)) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); return; }
+    prefs.pin = { l: l.key, id: ev.id, snap: snapOf(l, ev) }; savePrefs(); render();
+    var s = sides(ev); flashNote("Pinned " + (s.away.abbr || "") + " at " + (s.home.abbr || "") + " to the top. Hold it again to unpin.");
+  }
+  function renderPin() {
+    var el = $("pin");
+    if (!prefs.pin) { el.hidden = true; el.replaceChildren(); return; }
+    var l = BY_KEY[prefs.pin.l], ev = l && findEvent(l, prefs.pin.id);
+    if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail) { prefs.pin.snap = sn; savePrefs(); } }
+    var p = prefs.pin.snap;
+    if (!p) { el.hidden = true; return; }
+    var band = rgbOf(getComputedStyle(el.parentNode).backgroundColor) || [29, 28, 26];
+    var col = function (hex) { var rgb = rgbOf(hex ? "#" + String(hex).replace("#", "") : ""); return rgb ? css(readable(rgb, band)) : "transparent"; };
+    var a = num(p.as), hh = num(p.hs), live = p.state === "in";
+    el.hidden = false;
+    el.className = "pin" + (live ? " live" : "");
+    el.replaceChildren(
+      h("span", { class: "side" }, [h("span", { class: "sw", style: "background:" + col(p.ac) }), h("span", { class: "ab", text: p.away || "?" }),
+        h("span", { class: "n" + (a > hh ? " up" : ""), text: p.state === "pre" ? "" : String(p.as == null ? "" : p.as) })]),
+      h("span", { class: "side" }, [h("span", { class: "n" + (hh > a ? " up" : ""), text: p.state === "pre" ? "" : String(p.hs == null ? "" : p.hs) }),
+        h("span", { class: "ab", text: p.home || "?" }), h("span", { class: "sw", style: "background:" + col(p.hc) })]),
+      h("span", { class: "det", text: (p.state === "pre" ? p.detail : p.detail || (p.state === "post" ? "Final" : "")) + (ev ? "" : p.lg ? " · " + p.lg : "") }));
+    el.setAttribute("aria-label", "Pinned: " + (p.away || "") + " " + (p.as || "") + ", " + (p.home || "") + " " + (p.hs || "") + ". Tap to open, hold to unpin.");
+  }
+
   var pending = [];
   function gameRow(l, ev, scale) {
     var s = sides(ev), hs = ensureHist(l, ev), now = Date.now(), tc = teamColors(ev);
@@ -1369,11 +1438,10 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
     var a = num(s.away.score), hh = num(s.home.score);
     var canvas = h("canvas", { "aria-label": "Margin over the game" });
     var play = ev.state === "in" ? [ev.down, ev.play].filter(Boolean).join(". ") : "";
-    var row = h("tr", { class: "row" + (hot ? " hot" : ""), tabindex: "0",
+    var row = h("tr", { class: "row" + (hot ? " hot" : "") + (isPinned(l, ev) ? " pinned" : ""), tabindex: "0",
       style: hot ? "--hotc:" + alpha(tc[lastMark.side] || tc.home, 0.2) : null,
-      "aria-label": (s.away.full || s.away.abbr || "") + " at " + (s.home.full || s.home.abbr || "") + ": game page",
-      onclick: function () { openGame(l, ev); },
-      onkeydown: function (e) { if (e.key === "Enter" && e.target === row) openGame(l, ev); } }, [
+      "aria-label": (s.away.full || s.away.abbr || "") + " at " + (s.home.full || s.home.abbr || "") + ": game page; hold to pin to the top",
+      onkeydown: function (e) { if (e.key === "Enter" && e.target === row) openGame(l, ev); else if ((e.key === "p" || e.key === "P") && e.target === row) togglePin(l, ev); } }, [
       h("td", { class: "tm a", title: (s.away.full || "") + (s.away.record ? " (" + dash(s.away.record) + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.away }), s.away.abbr || "?", favMark(l, ev, "away")]),
       h("td", { class: "sc" + (a > hh ? " lead" : ""), text: a == null ? "" : String(a) }),
       h("td", { class: "sp" }, [canvas]),
@@ -1383,18 +1451,20 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
       h("td", { class: "lp", title: play || null, text: play })]);
     if (hot) row.querySelectorAll("td").forEach(function (td) { td.style.animationDelay = "-" + ((now - lastMark.at) / 1000).toFixed(2) + "s"; });
     pending.push(function () { drawMargin(canvas, l, ev, hs, scale, false); });
+    pressable(row, function () { openGame(l, ev); }, function () { togglePin(l, ev); });
     return row;
   }
   function upRow(l, ev) {
     var s = sides(ev);
-    var row = h("tr", { class: "row", tabindex: "0", "aria-label": (s.away.full || "") + " at " + (s.home.full || "") + ": game page",
-      onclick: function () { openGame(l, ev); }, onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
+    var row = h("tr", { class: "row" + (isPinned(l, ev) ? " pinned" : ""), tabindex: "0", "aria-label": (s.away.full || "") + " at " + (s.home.full || "") + ": game page; hold to pin to the top",
+      onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); else if (e.key === "p" || e.key === "P") togglePin(l, ev); } }, [
       h("td", { class: "when", text: whenText(ev.date) }),
       h("td", { class: "mu", title: (s.away.full || "") + " at " + (s.home.full || "") }, [
         s.away.abbr || "?", favMark(l, ev, "away"), s.away.record ? h("span", { class: "rec", text: dash(s.away.record) }) : null,
         h("span", { class: "at", text: "at" }),
         s.home.abbr || "?", favMark(l, ev, "home"), s.home.record ? h("span", { class: "rec", text: dash(s.home.record) }) : null,
         ev.example ? h("span", { class: "rec", text: " (example)" }) : null])]);
+    pressable(row, function () { openGame(l, ev); }, function () { togglePin(l, ev); });
     return row;
   }
   // A table per state, a header row per league with its sparkline scale.
@@ -1499,7 +1569,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   }
 
   function render() {
-    renderLeagues(); renderStatus(); renderAlertsButton();
+    renderLeagues(); renderStatus(); renderAlertsButton(); renderPin();
     var inGame = !!view;
     $("leagues").hidden = inGame; $("board").hidden = inGame; $("days").hidden = inGame;
     if (!inGame) renderDays();
@@ -1848,6 +1918,8 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   }
 
   // ---- App setup ---------------------------------------------------------
+  pressable($("pin"), function () { var p = prefs.pin, l = p && BY_KEY[p.l]; if (l) openGame(l, { id: p.id }); },
+    function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
   $("sound").addEventListener("click", function () {
     prefs.sound = !prefs.sound; savePrefs();
     if (prefs.sound && !audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
