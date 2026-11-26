@@ -1,0 +1,19 @@
+name: font
+on:
+  push:
+    paths: [".github/workflows/font.yml"]
+permissions:
+  contents: write
+jobs:
+  get:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p fonts
+          curl -sL -o "fonts/EBGaramond[wght].ttf" "https://github.com/google/fonts/raw/main/ofl/ebgaramond/EBGaramond%5Bwght%5D.ttf"
+          curl -sL -o fonts/OFL.txt "https://github.com/google/fonts/raw/main/ofl/ebgaramond/OFL.txt"
+          ls -la fonts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fonts && git commit -m "Add EB Garamond (SIL Open Font License) for drawing the icon" && git push
