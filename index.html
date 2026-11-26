@@ -207,6 +207,9 @@ table.mkt .pct { font-weight: 500; flex: none; }
 .track circle { fill: var(--home); }
 .track figcaption { font-size: 14px; color: var(--gray); font-style: italic; margin-top: 4px; }
 .trackbig { max-width: 380px; }
+.racetop { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px 40px; align-items: start; }
+.racetop .standings { margin-top: 0; }
+@media (max-width: 900px) { .racetop { grid-template-columns: minmax(0, 1fr); } .racetop .trackbig { max-width: 300px; } }
 .standings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; align-items: start; margin-top: 18px; }
 @media (max-width: 700px) { .standings { grid-template-columns: minmax(0, 1fr); } }
 .standings h3 { margin: 0 0 4px; font-weight: 400; font-style: italic; font-size: 19px; }
@@ -1170,9 +1173,8 @@ table.mkt .pct { font-weight: 500; flex: none; }
     d.replaceChildren(back,
       h("div", { class: "dhead", style: "grid-template-columns:minmax(0,1fr)" }, [h("div", { class: "dteam" }, [
         h("span", { class: "nm", text: "Formula 1" + (ev.example ? ", example" : "") }), h("span", { class: "big", style: "font-size:clamp(34px,6vw,52px)", text: ev.name || "Grand Prix" })])]),
-      trackFig(ev, true),
+      h("div", { class: "racetop" }, [trackFig(ev, true), standingsBlock()]),
       h("div", { class: "markets", id: "dmarkets" }),
-      standingsBlock(),
       h("div", { class: "teams-box" }, ss.map(function (se) {
         var rows = (se.results || []).map(function (r, i) {
           return h("tr", null, [h("td", { text: String(r.pos || i + 1) }), h("td", { class: "r", text: r.n || r.a || "?" }), h("td", { class: "r", text: r.a || "" }), h("td", { class: "r", text: r.t || "" })]);
