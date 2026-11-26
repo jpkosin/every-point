@@ -98,12 +98,20 @@ def opt_e():
     r = S * 0.024; d.ellipse((ex - r, ey - r, ex + r, ey + r), fill=RED)
     return im
 
-OPTS = [opt_a, opt_b, opt_c, opt_d, opt_e]
+BAND, BAND_RED, BAND_INK = (29, 28, 26), (227, 134, 124), (255, 255, 248)   # the masthead's colours
+
+def opt_f():
+    """C reversed, as the masthead wears it: warm dark ground, S in the header's pale red, C in its cream. Ten per cent smaller than C, for more air."""
+    im = Image.new("RGB", (S, S), BAND); a, b, x, y, w, hgt = letters(0.02, 0.72)
+    fill(im, a, BAND_RED); fill(im, b, BAND_INK)
+    return im
+
+OPTS = [opt_a, opt_b, opt_c, opt_d, opt_e, opt_f]
 if __name__ == "__main__":
-    # The chosen icon is C (home and away). `python3 tools/sc_icons.py all DIR` redraws every option.
+    # The chosen icon is F (C reversed into the masthead colours). `python3 tools/sc_icons.py all DIR` redraws every option.
     if len(sys.argv) > 2 and sys.argv[1] == "all":
         for f in OPTS: f().resize((1024, 1024), Image.LANCZOS).save(os.path.join(sys.argv[2], f.__name__ + ".png"))
     else:
-        root = os.path.join(HERE, ".."); im = opt_c()
+        root = os.path.join(HERE, ".."); im = opt_f()
         for n in (180, 192, 512): im.resize((n, n), Image.LANCZOS).save(os.path.join(root, "sc-%d.png" % n))
         im.resize((64, 64), Image.LANCZOS).save(os.path.join(root, "sc-favicon.png"))
