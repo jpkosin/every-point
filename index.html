@@ -177,6 +177,42 @@ table.stats tr.bench td { color: var(--gray); font-style: italic; text-align: le
 table.stats tr.tot td { border-top: 1px solid var(--ink); font-weight: 500; }
 table.stats .r { text-align: left; }
 
+.back { justify-self: start; position: sticky; top: calc(8px + env(safe-area-inset-top, 0px)); z-index: 5;
+  background: var(--ink); color: var(--bg); font-size: 17px; padding: 8px 18px 9px; min-height: 44px; border-radius: 2px;
+  box-shadow: 0 0 0 5px var(--bg); }
+.back:hover { opacity: 0.85; }
+.days { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 0 10px; }
+.days .arrow { border: 1px solid var(--rule); min-width: 44px; min-height: 40px; font-size: 22px; line-height: 1; }
+.days .arrow:hover { border-color: var(--ink); }
+.days .lbl { font-size: 21px; margin: 0 4px; }
+.days input { font: inherit; font-size: 16px; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 6px 8px; min-height: 40px; }
+.markets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; align-items: start; }
+@media (max-width: 800px) { .markets { grid-template-columns: minmax(0, 1fr); } }
+.mk h2 { font-style: normal; font-size: 22px; }
+.mk .ev { margin: 8px 0 2px; font-size: 16px; }
+.mk .ev a { color: var(--ink); text-decoration-color: var(--rule); text-underline-offset: 3px; }
+.mk .ev span { color: var(--gray); font-size: 14px; margin-left: 6px; }
+.markets .src { margin: 0; color: var(--gray); font-style: italic; font-size: 15px; }
+table.mkt { border-collapse: collapse; width: 100%; font-size: 15px; }
+table.mkt td { padding: 4px 8px 4px 0; vertical-align: top; border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); }
+table.mkt td.q { width: 42%; }
+table.mkt td.v { text-align: right; color: var(--gray); white-space: nowrap; font-size: 14px; padding-right: 0; }
+table.mkt .o { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+table.mkt .o .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+table.mkt .bar { display: inline-block; height: 7px; background: var(--ink); opacity: 0.5; flex: none; }
+table.mkt .pct { font-weight: 500; flex: none; }
+.f1 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 20px; align-items: start; }
+@media (max-width: 520px) { .f1 .row2 { grid-template-columns: minmax(0, 1fr) 96px; gap: 10px; } }
+.track svg { display: block; width: 100%; height: auto; }
+.track path { fill: none; stroke: var(--ink); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
+.track circle { fill: var(--home); }
+.track figcaption { font-size: 14px; color: var(--gray); font-style: italic; margin-top: 4px; }
+.trackbig { max-width: 380px; }
+.standings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; align-items: start; margin-top: 18px; }
+@media (max-width: 700px) { .standings { grid-template-columns: minmax(0, 1fr); } }
+.standings h3 { margin: 0 0 4px; font-weight: 400; font-style: italic; font-size: 19px; }
+.standings td.who { text-align: left; }
+.standings td.gap { color: var(--gray); }
 @keyframes hot { 0%, 40% { background: var(--hot); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { table.agate tr.hot td, .feed li.new { animation: none; } }
 @media (max-width: 600px) { .app header { padding-left: 0; } .tools { margin-left: 0; } h1 { font-size: 34px; } }
@@ -198,6 +234,7 @@ table.stats .r { text-align: left; }
     <div class="cap" id="rug-cap">Every score in the last 30 minutes</div>
     <canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas>
   </div>
+  <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
   <nav class="leagues" id="leagues" aria-label="Leagues"></nav>
   <div class="board" id="board">
@@ -261,7 +298,9 @@ table.stats .r { text-align: left; }
     }).sort(function (a, b) { return String(a.date || "").localeCompare(String(b.date || "")); });
     var states = sessions.map(function (x) { return x.state; });
     var state = states.indexOf("in") >= 0 ? "in" : states.length && states.every(function (x) { return x === "post"; }) ? "post" : "pre";
-    return { id: e.id, date: e.date, race: true, name: e.name || e.shortName, state: state, sessions: sessions, teams: [] };
+    var ci = e.circuit || {}, ad = ci.address || {};
+    return { id: e.id, date: e.date, race: true, name: e.name || e.shortName, state: state, sessions: sessions, teams: [],
+      circuit: ci.fullName ? { name: ci.fullName, city: ad.city, country: ad.country } : null };
   }
   function game(e) {
     var c = (e.competitions || [{}])[0] || {}, st = e.status || {}, t = st.type || {}, sit = c.situation || {}, lp = sit.lastPlay || {};
@@ -273,10 +312,11 @@ table.stats .r { text-align: left; }
           home: x.homeAway === "home", record: rec[0] ? rec[0].summary : null, ls: (x.linescores || []).map(function (l) { return l.value; }) };
       }) };
   }
-  async function getLeague(l) {
+  async function getLeague(l, d) {
     var events = [], seen = {}, errors = [];
     await Promise.all(l.paths.map(async function (p) {
       var url = p.indexOf("?") >= 0 ? BASE + p.replace("?", "/scoreboard?") : BASE + p + "/scoreboard";
+      if (d) url += (url.indexOf("?") >= 0 ? "&" : "?") + "dates=" + d;
       try { (await getJSON(url)).events.forEach(function (e) { if (!seen[e.id]) { seen[e.id] = 1; events.push(e); } }); }
       catch (e) { errors.push(String((e && e.message) || e)); }
     }));
@@ -455,20 +495,24 @@ table.stats .r { text-align: left; }
     });
     return n;
   }
-  function schedule() { clearTimeout(timer); timer = setTimeout(poll, liveCount() ? LIVE_MS : IDLE_MS); }
+  function schedule() { clearTimeout(timer); timer = setTimeout(poll, !isToday() ? SLOW_IDLE_MS : liveCount() ? LIVE_MS : IDLE_MS); }
   function due(l, now) {
     if (!fetchedAt[l.key] || (data[l.key] || {}).error) return true;
+    if (!isToday()) return now - fetchedAt[l.key] >= SLOW_IDLE_MS - 1000;
     var wait = liveCount(l.key) ? LIVE_MS : l.slow ? SLOW_IDLE_MS : IDLE_MS;
     return now - fetchedAt[l.key] >= wait - 1000;
   }
+  var again = false;
   async function poll() {
-    if (busy) return;
+    if (busy) { again = true; return; }
     if (document.hidden) { schedule(); return; }
     busy = true;
+    var forDay = day;
     try {
       var now = Date.now(), list = LEAGUES.filter(function (l) { return due(l, now); });
       if (list.length) {
-        var res = {}, got = await Promise.all(list.map(getLeague));
+        var res = {}, got = await Promise.all(list.map(function (l) { return getLeague(l, isToday() ? null : day); }));
+        if (forDay !== day) throw new Error("STALE");
         list.forEach(function (l, i) { res[l.key] = got[i]; if (!got[i].error) fetchedAt[l.key] = now; });
         var bad = list.filter(function (l) { return res[l.key].error; });
         if (bad.length === list.length) throw new Error(res[bad[0].key].error);
@@ -478,13 +522,16 @@ table.stats .r { text-align: left; }
       lastError = "";
       mode = "live";
       if (view && !box.data && !box.loading) loadBox();
+      if (view && mk.key !== view.l.key + ":" + view.id) loadMarkets();
     } catch (e) {
+      if (String(e && e.message) === "STALE") { busy = false; poll(); return; }
       mode = "live";
       lastError = /fetch|network|load/i.test(String(e && e.message)) ? "can't reach ESPN" : String((e && e.message) || e);
     }
     busy = false;
     render();
     schedule();
+    if (again) { again = false; poll(); }
   }
 
   function ingest(res) {
@@ -577,6 +624,210 @@ table.stats .r { text-align: left; }
       g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
       o.connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + 0.65);
     });
+  }
+
+  // ---- Day ---------------------------------------------------------------
+  // null is today, which refreshes live; any other day is YYYYMMDD.
+  var day = null;
+  function ymd(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"); }
+  function isToday() { return !day || day === ymd(new Date()); }
+  function dayDate() { var s = day || ymd(new Date()); return new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)); }
+  function setDay(s) {
+    if (s === ymd(new Date())) s = null;
+    if (s === day) return;
+    day = s; data = {}; fetchedAt = {};
+    render(); clearTimeout(timer); poll();
+  }
+  function renderDays() {
+    var el = $("days"), d = dayDate(), now = new Date();
+    var shift = function (n) { var x = new Date(d); x.setDate(x.getDate() + n); setDay(ymd(x)); };
+    var label = isToday() ? "Today" : d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+    var iso = ymd(d).replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+    el.replaceChildren(
+      h("button", { class: "arrow", type: "button", "aria-label": "Previous day", text: "‹", onclick: function () { shift(-1); } }),
+      h("span", { class: "lbl", text: label }),
+      h("button", { class: "arrow", type: "button", "aria-label": "Next day", text: "›", onclick: function () { shift(1); } }),
+      h("input", { type: "date", value: iso, "aria-label": "Pick a date", onchange: function (e) { if (e.target.value) setDay(e.target.value.replace(/-/g, "")); } }),
+      isToday() ? "" : h("button", { class: "link", type: "button", text: "Back to today", onclick: function () { setDay(null); } }));
+  }
+
+  // ---- Prediction markets ------------------------------------------------
+  // Polymarket and Kalshi, matched to a game by team names and its date in
+  // US Eastern time; the biggest markets by volume, prices as chances.
+  var POLY = "https://gamma-api.polymarket.com", KALSHI = "https://api.elections.kalshi.com/trade-api/v2";
+  var POLY_PRE = { nfl: "nfl", nba: "nba", mlb: "mlb", nhl: "nhl", mls: "mls", ncaaf: "cfb", ncaam: "cbb", ncaaw: "cwbb" };
+  var KALSHI_SERIES = { nfl: "KXNFLGAME", nba: "KXNBAGAME", mlb: "KXMLBGAME", nhl: "KXNHLGAME", mls: "KXMLSGAME", ncaaf: "KXNCAAFGAME", ncaam: "KXNCAAMBGAME", ncaaw: "KXNCAAWBGAME" };
+  var MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  function etDate(iso) {
+    try { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso)); }
+    catch (e) { return String(iso).slice(0, 10); }
+  }
+  function norm(x) { return " " + String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim() + " "; }
+  function teamTokens(t) {
+    var out = [t.abbr, t.name, t.full];
+    if (t.full && t.name && t.full.indexOf(t.name) > 0) out.push(t.full.slice(0, t.full.indexOf(t.name)));
+    return out.map(function (x) { return norm(x); }).filter(function (x) { return x.trim().length >= 2; });
+  }
+  function mentions(text, t) { var n = norm(text); return teamTokens(t).some(function (k) { return n.indexOf(k) >= 0; }); }
+  function near(iso, ref, days) { var t = Date.parse(iso); return !isNaN(t) && Math.abs(t - Date.parse(ref)) < days * 864e5; }
+  function parseList(x) { try { return Array.isArray(x) ? x : JSON.parse(x || "[]"); } catch (e) { return []; } }
+  function money(v) { v = +v || 0; return v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? "$" + Math.round(v / 1e3) + "K" : "$" + Math.round(v); }
+  function count(v) { v = +v || 0; return (v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "K" : String(Math.round(v))) + " contracts"; }
+
+  async function polyFor(l, ev) {
+    var events = [];
+    if (l.race) {
+      var gp = /(\S+(?:\s+\S+)?)\s+Grand Prix/i.exec(ev.name || ""), place = gp ? gp[1].split(" ").pop() : (ev.name || "");
+      var r = await getJSON(POLY + "/public-search?q=" + encodeURIComponent(place + " Grand Prix") + "&limit_per_type=20");
+      events = (r.events || []).filter(function (e) { return norm(e.title).indexOf(norm(place)) >= 0 && near(e.endDate || e.startTime, ev.date, 8); });
+    } else {
+      var s = sides(ev), pre = POLY_PRE[l.key];
+      if (pre && s.away.abbr && s.home.abbr) {
+        try { events = await getJSON(POLY + "/events?slug=" + encodeURIComponent([pre, s.away.abbr, s.home.abbr, etDate(ev.date)].join("-").toLowerCase())); } catch (e) { events = []; }
+      }
+      if (!events.length) {
+        var r2 = await getJSON(POLY + "/public-search?q=" + encodeURIComponent((s.away.name || s.away.abbr) + " " + (s.home.name || s.home.abbr)) + "&limit_per_type=20");
+        events = (r2.events || []).filter(function (e) { return mentions(e.title, s.away) && mentions(e.title, s.home) && near(e.startTime || e.eventDate || e.endDate, ev.date, 1.5); });
+      }
+    }
+    events.sort(function (a, b) { return (+b.volume || 0) - (+a.volume || 0); });
+    return events.slice(0, l.race ? 3 : 2).map(function (e) {
+      var ms = (e.markets || []).filter(function (m) { return m.outcomePrices; }), multi = e.negRisk || e.enableNegRisk, rows;
+      if (multi) rows = ms.map(function (m) { return { label: m.groupItemTitle || m.question, outs: [{ p: +parseList(m.outcomePrices)[0] || 0 }], vol: +m.volumeNum || +m.volume || 0 }; })
+        .sort(function (a, b) { return b.outs[0].p - a.outs[0].p; }).slice(0, 8);
+      else rows = ms.sort(function (a, b) { return (+b.volumeNum || 0) - (+a.volumeNum || 0); }).slice(0, 6).map(function (m) {
+        var names = parseList(m.outcomes), ps = parseList(m.outcomePrices);
+        return { label: m.groupItemTitle || m.question, outs: names.map(function (n, i) { return { n: n, p: +ps[i] || 0 }; }), vol: +m.volumeNum || +m.volume || 0 };
+      });
+      return { title: e.title, url: "https://polymarket.com/event/" + e.slug, vol: money(e.volume) + " traded", rows: rows, money: true };
+    });
+  }
+  async function kalshiFor(l, ev) {
+    var ser = KALSHI_SERIES[l.key];
+    if (!ser) return [];
+    var st = ev.state === "post" ? "settled" : "open";
+    var r = await getJSON(KALSHI + "/events?series_ticker=" + ser + "&status=" + st + "&with_nested_markets=true&limit=200");
+    var d = etDate(ev.date), code = d.slice(2, 4) + MON[+d.slice(5, 7) - 1] + d.slice(8, 10), s = sides(ev);
+    var hits = (r.events || []).filter(function (e) {
+      var tk = String(e.event_ticker || "").toUpperCase();
+      if (tk.indexOf(code) < 0) return false;
+      var tail = tk.split(code).pop();
+      return (s.away.abbr && s.home.abbr && tail.indexOf(s.away.abbr.toUpperCase()) >= 0 && tail.indexOf(s.home.abbr.toUpperCase()) >= 0) ||
+        (mentions(e.title, s.away) && mentions(e.title, s.home));
+    });
+    return hits.map(function (e) {
+      var vol = 0, rows = (e.markets || []).map(function (m) {
+        var p = m.last_price_dollars != null ? +m.last_price_dollars : m.last_price ? m.last_price / 100 :
+          (m.yes_bid != null && m.yes_ask != null) ? (m.yes_bid + m.yes_ask) / 200 : 0;
+        vol += +m.volume || 0;
+        return { label: m.yes_sub_title || m.subtitle || m.title, outs: [{ p: p }], vol: +m.volume || 0 };
+      }).sort(function (a, b) { return b.outs[0].p - a.outs[0].p; });
+      return { title: e.title, url: "https://kalshi.com/markets/" + ser.toLowerCase(), vol: count(vol), rows: rows, money: false };
+    });
+  }
+  var mk = { key: "", poly: null, kalshi: null, at: 0 }, mkTimer = null;
+  async function loadMarkets() {
+    if (!view) return;
+    var l = view.l, key = l.key + ":" + view.id, ev = findEvent(l, view.id);
+    clearTimeout(mkTimer);
+    if (!ev) return;
+    if (mk.key !== key) mk = { key: key, poly: null, kalshi: null, at: 0 };
+    var res = await Promise.allSettled([polyFor(l, ev), l.race ? Promise.resolve(null) : kalshiFor(l, ev)]);
+    if (mk.key !== key) return;
+    mk.poly = res[0].status === "fulfilled" ? res[0].value : { error: "Polymarket couldn't be reached." };
+    mk.kalshi = res[1].status === "fulfilled" ? res[1].value : { error: "Kalshi couldn't be reached from this browser." };
+    mk.at = Date.now();
+    renderMarkets();
+    if (view && mk.key === key && ev.state !== "post") mkTimer = setTimeout(loadMarkets, 60000);
+  }
+  function marketSection(name, got, isRace) {
+    var kids = [h("h2", { text: name })];
+    if (got === null) kids.push(h("p", { class: "src", text: isRace ? "Kalshi's F1 markets aren't matched yet." : "Loading markets…" }));
+    else if (got.error) kids.push(h("p", { class: "src", text: got.error }));
+    else if (!got.length) kids.push(h("p", { class: "src", text: "No matching markets found." }));
+    else got.forEach(function (e) {
+      kids.push(h("div", { class: "ev" }, [h("a", { href: e.url, target: "_blank", rel: "noopener", text: e.title || name }), h("span", { text: e.vol })]));
+      kids.push(h("table", { class: "mkt" }, [h("tbody", null, e.rows.map(function (r) {
+        var outs = r.outs.map(function (o) {
+          var pct = Math.round(o.p * 100);
+          return h("div", { class: "o" }, [o.n ? h("span", { class: "n", text: o.n }) : null,
+            h("span", { class: "bar", style: "width:" + Math.max(1, Math.round(o.p * 64)) + "px" }), h("span", { class: "pct", text: (o.p > 0 && pct < 1 ? "<1" : pct) + "%" })]);
+        });
+        return h("tr", null, [h("td", { class: "q", text: r.label || "" }), h("td", null, outs), h("td", { class: "v", text: e.money ? money(r.vol) : count(r.vol) })]);
+      }))]));
+    });
+    return h("section", { class: "mk" }, kids);
+  }
+  function renderMarkets() {
+    var el = $("dmarkets");
+    if (!el || !view) return;
+    var isRace = !!view.l.race, busy0 = mk.key !== view.l.key + ":" + view.id;
+    el.replaceChildren(
+      marketSection("Polymarket", busy0 ? null : mk.poly, false),
+      isRace ? "" : marketSection("Kalshi", busy0 ? null : mk.kalshi, false));
+    if (!busy0 && mk.at) el.append(h("p", { class: "src", style: "grid-column:1/-1", text: "Prices are the markets' implied chances, " + ((findEvent(view.l, view.id) || {}).state === "in" ? "refreshed every minute." : "as of " + new Date(mk.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ".") }));
+  }
+
+  // ---- F1: circuits and championships -------------------------------------
+  // Outlines from github.com/bacinger/f1-circuits (MIT), simplified in circuits.json.
+  var circuits = null, standings = null, standingsAt = 0;
+  async function loadCircuits() {
+    try { circuits = (await (await fetch("circuits.json")).json()).circuits || []; } catch (e) { circuits = []; }
+    render();
+  }
+  var STOP = { circuit: 1, international: 1, the: 1, grand: 1, prix: 1, autodromo: 1, racing: 1, course: 1, street: 1, strip: 1, nazionale: 1, internazionale: 1, del: 1 };
+  function words(x) { return norm(x).trim().split(" ").filter(function (w) { return w.length > 2 && !STOP[w]; }); }
+  function findCircuit(c) {
+    if (!circuits || !c) return null;
+    var want = words([c.name, c.city].join(" ")), best = null, score = 0;
+    circuits.forEach(function (x) {
+      var have = words(x.name + " " + x.location), n = want.filter(function (w) { return have.indexOf(w) >= 0; }).length;
+      if (n > score) { score = n; best = x; }
+    });
+    return best;
+  }
+  function trackFig(ev, big) {
+    var c = findCircuit(ev.circuit);
+    if (!c || !c.pts || c.pts.length < 3) return "";
+    var NS = "http://www.w3.org/2000/svg", sv = document.createElementNS(NS, "svg"), p = document.createElementNS(NS, "path"), dot = document.createElementNS(NS, "circle");
+    sv.setAttribute("viewBox", "-30 -30 1060 1060"); sv.setAttribute("role", "img"); sv.setAttribute("aria-label", "Track map of " + c.name);
+    p.setAttribute("d", "M" + c.pts.map(function (q) { return q[0] + " " + q[1]; }).join("L") + "Z");
+    if (big) p.style.strokeWidth = "6";
+    dot.setAttribute("cx", c.pts[0][0]); dot.setAttribute("cy", c.pts[0][1]); dot.setAttribute("r", big ? 16 : 22);
+    sv.append(p, dot);
+    return h("figure", { class: "track" + (big ? " trackbig" : ""), style: "margin:0" }, [sv,
+      h("figcaption", { text: big ? [c.name, c.location, c.length ? (c.length / 1000).toFixed(3) + " km a lap" : null].filter(Boolean).join(", ") + ". The red dot marks the start line." : c.name })]);
+  }
+  async function loadStandings() {
+    try {
+      var d = await getJSON("https://site.api.espn.com/apis/v2/sports/racing/f1/standings"), out = { drivers: [], teams: [] };
+      (d.children || []).forEach(function (ch) {
+        var list = ((ch.standings || {}).entries || []).map(function (e) {
+          var st = {}; (e.stats || []).forEach(function (x) { st[x.name] = x.value; });
+          var who = e.athlete || e.team || {};
+          return { name: who.displayName || who.name || "?", abbr: who.abbreviation, rank: st.rank, pts: st.championshipPts != null ? st.championshipPts : st.points || 0, wins: st.wins };
+        }).sort(function (a, b) { return (a.rank || 99) - (b.rank || 99); });
+        if (/constructor/i.test(ch.name || ch.abbreviation || "")) out.teams = list; else out.drivers = list;
+      });
+      standings = out; standingsAt = Date.now();
+    } catch (e) { if (!standings) standings = { error: true }; }
+    render();
+  }
+  function standingsTable(title, list, max) {
+    if (!list || !list.length) return null;
+    var top = list[0].pts || 1;
+    return h("div", null, [h("h3", { text: title }), h("div", { class: "scroll" }, [h("table", { class: "stats" }, [
+      h("thead", null, [h("tr", null, [h("th", { scope: "col", text: "" }), h("th", { class: "r", scope: "col", text: "" }), h("th", { scope: "col", text: "PTS" }), h("th", { scope: "col", text: "GAP" })])]),
+      h("tbody", null, list.slice(0, max || 99).map(function (r, i) {
+        var pct = Math.max(0, Math.min(100, r.pts / top * 100)).toFixed(1);
+        return h("tr", null, [h("td", { text: String(r.rank || i + 1) }), h("td", { class: "who" + (i === 0 ? " lead" : ""), text: r.name }),
+          h("td", { class: i === 0 ? "lead" : null, style: "min-width:110px;background:linear-gradient(90deg," + alpha(pal().ink, 0.1) + " " + pct + "%,transparent " + pct + "%)", text: String(r.pts) }),
+          h("td", { class: "gap", text: i === 0 ? "" : "−" + (top - r.pts) })]);
+      }))])])]);
+  }
+  function standingsBlock(max) {
+    if (!standings || standings.error) return "";
+    return h("div", { class: "standings" }, [standingsTable("Drivers' championship", standings.drivers, max), standingsTable("Constructors' championship", standings.teams, max)]);
   }
 
   // ---- Drawing -----------------------------------------------------------
@@ -676,6 +927,7 @@ table.stats .r { text-align: left; }
     st.className = "status";
     if (mode !== "live") st.textContent = mode === "starting" ? "Starting" : "Not connected";
     else if (lastError) { st.className = "status err"; st.textContent = "Couldn't refresh: " + lastError; }
+    else if (!isToday()) st.textContent = Object.keys(data).length ? "Scores for " + dayDate().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) : "Fetching scores";
     else if (updated) {
       var s = Math.round((Date.now() - updated) / 1000), n = liveCount();
       st.textContent = (n ? n + " live" : "No live games") + ", updated " + (s < 5 ? "just now" : s + " s ago");
@@ -774,8 +1026,8 @@ table.stats .r { text-align: left; }
     return t;
   }
   function f1Block(l) {
-    var evs = (data.f1 || {}).events || [];
-    if (!evs.length) return null;
+    var evs = (data.f1 || {}).events || [], table = standingsBlock(10);
+    if (!evs.length && !table) return null;
     return h("section", { class: "group f1" }, [h("h2", { text: "Formula 1" })].concat(evs.map(function (ev) {
       var cur = currentSession(ev), res = (cur && cur.results) || [];
       var ss = (ev.sessions || []).map(function (se, i) {
@@ -784,19 +1036,21 @@ table.stats .r { text-align: left; }
       }).reduce(function (a, b) { return a.concat(b); }, []);
       var el = h("div", { class: "ev", tabindex: "0", role: "link", "aria-label": (ev.name || "Grand Prix") + ": all sessions",
         onclick: function () { openGame(l, ev); }, onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
-        h("div", { class: "nm" }, [ev.name || "Grand Prix", ev.example ? h("span", { class: "ex", text: " (example)" }) : null]),
-        h("div", { class: "ss" }, ss),
-        res.length && cur.state !== "pre" ? h("ol", { "aria-label": sessionName(cur.name) + " order" }, res.slice(0, 10).map(function (r, i) {
-          return h("li", { title: [r.n, r.t].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), r.a || "?"]);
-        })) : null]);
+        h("div", { class: "row2" }, [h("div", null, [
+          h("div", { class: "nm" }, [ev.name || "Grand Prix", ev.example ? h("span", { class: "ex", text: " (example)" }) : null]),
+          h("div", { class: "ss" }, ss),
+          res.length && cur.state !== "pre" ? h("ol", { "aria-label": sessionName(cur.name) + " order" }, res.slice(0, 10).map(function (r, i) {
+            return h("li", { title: [r.n, r.t].filter(Boolean).join(", ") }, [h("span", { class: "p", text: String(r.pos || i + 1) }), r.a || "?"]);
+          })) : null]), trackFig(ev, false)])]);
       return el;
-    })));
+    })).concat([table]));
   }
 
   function render() {
     renderLeagues(); renderStatus(); renderAlertsButton();
     var inGame = !!view;
-    $("leagues").hidden = inGame; $("board").hidden = inGame;
+    $("leagues").hidden = inGame; $("board").hidden = inGame; $("days").hidden = inGame;
+    if (!inGame) renderDays();
     if (inGame) { renderDetail(true); drawRug(); return; }
     renderDetail(false);
     var main = $("games");
@@ -826,7 +1080,7 @@ table.stats .r { text-align: left; }
     });
     if (!any) {
       var which = prefs.league === "all" ? "any league" : BY_KEY[prefs.league].label;
-      main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard right now.") : "Loading scores…" }));
+      main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard " + (isToday() ? "right now." : "that day.")) : "Loading scores…" }));
     }
     requestAnimationFrame(function () { pending.forEach(function (f) { f(); }); pending = []; });
     renderFeed(); drawRug();
@@ -857,7 +1111,8 @@ table.stats .r { text-align: left; }
       if (box.key !== key) box = { key: key, data: null, error: "", at: 0, loading: false };
       window.scrollTo(0, 0);
       loadBox();
-    }
+      loadMarkets();
+    } else clearTimeout(mkTimer);
     $("detail").replaceChildren();
     render();
     if (!view && was) requestAnimationFrame(function () { window.scrollTo(0, scrollBack); });
@@ -938,12 +1193,15 @@ table.stats .r { text-align: left; }
 
   // F1 weekend page: every session, newest first, with its full order.
   function renderRace(d, l, ev) {
-    var back = h("button", { class: "link back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } });
+    var back = h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } });
     if (!ev) { d.replaceChildren(back, h("p", { class: "dnote", text: "This weekend is no longer on F1's scoreboard." })); return; }
     var ss = (ev.sessions || []).slice().reverse();
     d.replaceChildren(back,
       h("div", { class: "dhead", style: "grid-template-columns:minmax(0,1fr)" }, [h("div", { class: "dteam" }, [
         h("span", { class: "nm", text: "Formula 1" + (ev.example ? ", example" : "") }), h("span", { class: "big", style: "font-size:clamp(34px,6vw,52px)", text: ev.name || "Grand Prix" })])]),
+      trackFig(ev, true),
+      h("div", { class: "markets", id: "dmarkets" }),
+      standingsBlock(),
       h("div", { class: "teams-box" }, ss.map(function (se) {
         var rows = (se.results || []).map(function (r, i) {
           return h("tr", null, [h("td", { text: String(r.pos || i + 1) }), h("td", { class: "r", text: r.n || r.a || "?" }), h("td", { class: "r", text: r.a || "" }), h("td", { class: "r", text: r.t || "" })]);
@@ -955,6 +1213,7 @@ table.stats .r { text-align: left; }
             h("thead", null, [h("tr", null, ["Pos", "Driver", "", "Team"].map(function (t, i) { return h("th", { class: i ? "r" : null, scope: "col", text: t }); }))]),
             h("tbody", null, rows)])]) : h("p", { class: "dnote", text: se.state === "pre" ? "Not started." : "No order yet." })]);
       })));
+    renderMarkets();
   }
 
   var tablesKey = "";
@@ -966,8 +1225,9 @@ table.stats .r { text-align: left; }
     if (l.race) { renderRace(d, l, ev); return; }
     var bx = box.data;
     if (!$("dhead")) {
-      d.append(h("button", { class: "link back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { id: "dhead" }), h("div", { id: "driver" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+      d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
+        h("div", { id: "dhead" }), h("div", { id: "driver" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+      renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
     var away = s ? s.away : bt.filter(function (t) { return !t.home; })[0] || {};
@@ -1032,6 +1292,9 @@ table.stats .r { text-align: left; }
   window.addEventListener("hashchange", route);
   route();
   poll();
+  loadCircuits();
+  loadStandings();
+  setInterval(function () { if (!document.hidden && Date.now() - standingsAt > 600000) loadStandings(); }, 60000);
 })();
 </script>
 </body>

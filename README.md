@@ -5,3 +5,9 @@ Live scores for the NFL, NBA, MLB, NHL, MLS, F1 and every Division I college foo
 It reads ESPN's public scoreboard API straight from the browser. Open it on a phone and choose **Add to Home Screen** to use it like an app.
 
 Stars, bells and sound are saved in each browser separately. Alerts and chimes work while the page is open.
+
+## Data
+
+- Scores, box scores, F1 sessions and championship standings: ESPN's public site API.
+- Prediction markets on game pages: Polymarket (gamma API) and Kalshi (public market data). Prices are shown as implied chances; nothing here places bets.
+- F1 track outlines: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT License), simplified into `circuits.json` by `.github/workflows/circuits.yml`.
