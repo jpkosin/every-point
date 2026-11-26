@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Agate</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.25-2115">
+<meta name="agate-version" content="2026.11.25-2125">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agate">
@@ -302,7 +302,10 @@ table.mkt .pct { font-weight: 500; flex: none; }
   ];
   var BY_KEY = {};
   LEAGUES.forEach(function (l) { BY_KEY[l.key] = l; });
-  var LIVE_MS = 15000, IDLE_MS = 60000, SLOW_IDLE_MS = 300000, FLASH_MS = 6000, RUG_MS = 30 * 60000;
+  // ESPN refreshes live scoreboards about every 10 s (max-age=10), so pro
+  // leagues are asked every 5 s while live; college scoreboards are large
+  // (about 100 KB a time), so they stay at 15 s to spare a phone's data.
+  var FAST_MS = 5000, LIVE_MS = 15000, IDLE_MS = 60000, SLOW_IDLE_MS = 300000, FLASH_MS = 6000, RUG_MS = 30 * 60000;
   var fetchedAt = {};
 
   // ESPN's public site API, read straight from the browser. F1 events
@@ -582,11 +585,16 @@ table.mkt .pct { font-weight: 500; flex: none; }
     });
     return n;
   }
-  function schedule() { clearTimeout(timer); timer = setTimeout(poll, !isToday() ? SLOW_IDLE_MS : liveCount() ? LIVE_MS : IDLE_MS); }
+  function liveWait(l) { return l.slow ? LIVE_MS : FAST_MS; }
+  function schedule() {
+    clearTimeout(timer);
+    var fast = LEAGUES.some(function (l) { return !l.slow && liveCount(l.key); });
+    timer = setTimeout(poll, !isToday() ? SLOW_IDLE_MS : fast ? FAST_MS : liveCount() ? LIVE_MS : IDLE_MS);
+  }
   function due(l, now) {
     if (!fetchedAt[l.key] || (data[l.key] || {}).error) return true;
     if (!isToday()) return now - fetchedAt[l.key] >= SLOW_IDLE_MS - 1000;
-    var wait = liveCount(l.key) ? LIVE_MS : l.slow ? SLOW_IDLE_MS : IDLE_MS;
+    var wait = liveCount(l.key) ? liveWait(l) : l.slow ? SLOW_IDLE_MS : IDLE_MS;
     return now - fetchedAt[l.key] >= wait - 1000;
   }
   var again = false;
@@ -1239,7 +1247,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     box.loading = false;
     renderDetail(true);
     var state = (box.data && box.data.state) || (ev && ev.state);
-    if (view && box.key === key && state === "in") boxTimer = setTimeout(loadBox, LIVE_MS);
+    if (view && box.key === key && state === "in") boxTimer = setTimeout(loadBox, 10000);
   }
 
   function statNum(v) {
@@ -1376,7 +1384,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     if (box.error) note.textContent = "Couldn't load the box score: " + box.error;
     else if (box.loading && !bx) note.textContent = "Loading players…";
     else if (bx && !bt.some(function (t) { return t.groups && t.groups.length; })) note.textContent = state === "pre" ? "Player stats start when the game does." : "ESPN has no player stats for this game yet.";
-    else if (bx) note.textContent = (state === "in" ? "Live box score, refreshed every 15 s, " : "Box score, ") + "updated " + new Date(box.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + ". Bars show each figure against the game's best; the leader is in bold.";
+    else if (bx) note.textContent = (state === "in" ? "Live box score, refreshed every 10 s, " : "Box score, ") + "updated " + new Date(box.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + ". Bars show each figure against the game's best; the leader is in bold.";
     else note.textContent = "";
     if (!tablesToo || !bx) return;
     var key = box.key + ":" + box.at + ":" + (P ? P.ink : "");
