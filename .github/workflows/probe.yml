@@ -9,20 +9,14 @@ jobs:
       - shell: python
         run: |
           import json, urllib.request
-          def get(u): return json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
-          for dts in ["20261121", "20261122", "20261123"]:
-            d = get("https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=" + dts)
-            ev = d.get("events") or []
-            print("dates", dts, [(e.get("name"), e.get("id")) for e in ev])
-            if ev:
-              e = ev[0]
-              for c in e["competitions"]:
-                print("  comp", (c.get("type") or {}).get("abbreviation"), c.get("status", {}).get("type", {}).get("state"), "n", len(c.get("competitors") or []))
-              race = [c for c in e["competitions"] if (c.get("type") or {}).get("abbreviation") == "Race"] or e["competitions"][-1:]
-              cs = race[0].get("competitors") or []
-              for x in cs[:3]: print(json.dumps(x, indent=1)[:2500])
-              break
-          s = get("https://site.api.espn.com/apis/v2/sports/racing/f1/standings")
-          for ch in s.get("children", []):
-            for en in (ch.get("standings") or {}).get("entries", [])[:2]:
-              print("STAND", ch.get("name"), json.dumps({k: en.get(k) for k in ("athlete", "team")})[:900])
+          for u in ["https://api.jolpi.ca/ergast/f1/current/last/results.json", "https://api.jolpi.ca/ergast/f1/2026/qualifying.json?limit=1", "https://api.jolpi.ca/ergast/f1/current.json"]:
+            try:
+              r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Origin": "https://jpkosin.github.io"}), timeout=30)
+              print("==", u, "status", r.status, "ACAO", r.headers.get("Access-Control-Allow-Origin"))
+              d = json.loads(r.read())["MRData"]
+              if "RaceTable" in d:
+                rs = d["RaceTable"]["Races"]
+                print(" races", len(rs), [(x.get("round"), x.get("raceName"), x.get("date")) for x in rs[-3:]])
+                if rs and rs[-1].get("Results"):
+                  for x in rs[-1]["Results"][:3] + rs[-1]["Results"][-2:]: print(json.dumps(x)[:700])
+            except Exception as ex: print("ERR", u, ex)
