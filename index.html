@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#1d1c1a">
-<meta name="agate-version" content="2026.11.26-1507">
+<meta name="agate-version" content="2026.11.26-1511">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -64,7 +64,11 @@ header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-i
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
 .livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
-header canvas#rug { display: block; width: 100%; height: 30px; margin-top: 8px; }
+/* The canvas is taken out of layout so its pixel size never feeds back
+   into the grid's width. */
+header .band, header .row { min-width: 0; }
+header .rugbox { position: relative; height: 30px; margin-top: 8px; }
+header .rugbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 header .rcap { display: flex; justify-content: space-between; font-size: 12px; font-style: italic; color: var(--band-gray); padding: 2px 0 7px; }
 header .rcap b { font-style: normal; color: var(--band-ink); font-weight: 500; }
 header button { -webkit-app-region: no-drag; }
@@ -301,7 +305,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   <header>
     <div class="band">
       <div class="row"><h1><span class="sc-s">Score</span>Card</h1><div class="livec" id="livec"></div></div>
-      <canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas>
+      <div class="rugbox"><canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas></div>
       <div class="rcap"><span id="rug-cap">every score, last 30 min</span><span>now</span></div>
     </div>
     <span class="status" id="status">Starting</span>
