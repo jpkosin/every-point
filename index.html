@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#1d1c1a">
-<meta name="agate-version" content="2026.11.26-1515">
+<meta name="agate-version" content="2026.11.26-1527">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -299,6 +299,11 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
 .standings td.who { text-align: left; }
 .standings td.gap { color: var(--gray); }
 /* The flash after a score, in the scoring team's colour (yellow if unknown). */
+header { view-transition-name: masthead; }
+::view-transition-group(*) { animation-duration: 360ms; animation-timing-function: cubic-bezier(0.2, 0.75, 0.25, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; }
+::view-transition-old(vt-chart), ::view-transition-new(vt-chart) { width: 100%; height: 100%; object-fit: fill; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 @keyframes hot { 0%, 40% { background: var(--hotc, var(--hot)); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { table.agate tr.hot td, .feed li.new { animation: none; } }
 @media (max-width: 600px) {
@@ -943,6 +948,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
     return h("section", { class: "mk" }, kids);
   }
   function renderMarkets() {
+    if (moving) { dirty = true; return; }
     var el = $("dmarkets");
     if (!el || !view) return;
     var busy0 = mk.key !== view.l.key + ":" + view.id;
@@ -1451,7 +1457,8 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
       h("td", { class: "lp", title: play || null, text: play })]);
     if (hot) row.querySelectorAll("td").forEach(function (td) { td.style.animationDelay = "-" + ((now - lastMark.at) / 1000).toFixed(2) + "s"; });
     pending.push(function () { drawMargin(canvas, l, ev, hs, scale, false); });
-    pressable(row, function () { openGame(l, ev); }, function () { togglePin(l, ev); });
+    pressable(row, function () { nameRow(row); openGame(l, ev); }, function () { togglePin(l, ev); });
+    if (vt && vt.l === l.key && vt.id === String(ev.id)) nameRow(row);
     return row;
   }
   function upRow(l, ev) {
@@ -1569,6 +1576,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   }
 
   function render() {
+    if (moving) { dirty = true; return; }
     renderLeagues(); renderStatus(); renderAlertsButton(); renderPin();
     var inGame = !!view;
     $("leagues").hidden = inGame; $("board").hidden = inGame; $("days").hidden = inGame;
@@ -1605,7 +1613,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
       if (offL && !lastError) main.append(h("p", { class: "empty", text: (offL.title || offL.label) + " is in its off-season." + (returnDate(offL) ? " It's back in " + returnDate(offL) + "." : "") }));
       else main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard " + (isToday() ? "right now." : "that day.")) : "Loading scores…" }));
     }
-    requestAnimationFrame(function () { pending.forEach(function (f) { f(); }); pending = []; });
+    var pend = pending; pending = []; pend.forEach(schedDraw);
     renderFeed(); drawRug(); wantOdds();
   }
   function renderFeed() {
@@ -1625,9 +1633,37 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   var view = null, box = { key: "", data: null, error: "", at: 0, loading: false }, boxTimer = null, scrollBack = 0;
   function openGame(l, ev) { scrollBack = window.scrollY; location.hash = "game-" + l.key + "-" + ev.id; }
   var backTo = "";
+  // Motion: opening a game, its row becomes the page. The row's scores,
+  // team names and margin line share names with the page's big scores,
+  // names and chart, so the browser moves and scales each into place;
+  // going back runs it in reverse. Everything else crossfades, and the
+  // masthead holds still. Skipped where unsupported or motion is reduced.
+  var vt = null, routedOnce = false;
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function vtName(el, name) { if (el) el.style.viewTransitionName = name; return el; }
+  function nameRow(row) {
+    document.querySelectorAll("tr.row").forEach(function (r) { if (r !== row) Array.prototype.forEach.call(r.children, function (td) { td.style.viewTransitionName = ""; }); });
+    var tds = row.children;
+    vtName(tds[0], "vt-away"); vtName(tds[1], "vt-as"); vtName(tds[2], "vt-chart"); vtName(tds[3], "vt-hs"); vtName(tds[4], "vt-home");
+  }
   function route() {
+    if (!document.startViewTransition || reduceMotion || !routedOnce) { routedOnce = true; routeNow(); return; }
+    // Rendering pauses while the browser takes its "after" picture, so the
+    // charts are drawn at once rather than on the next frame.
+    // Redraws that arrive while it plays (scores, the box score loading)
+    // wait until it ends, so the browser never sees the page change mid-move.
+    var t = document.startViewTransition(function () { routeNow(); flushDraws(); moving = true; });
+    t.finished.then(settle, settle);
+  }
+  var moving = false, dirty = false;
+  function settle() { moving = false; if (dirty) { dirty = false; render(); } }
+  var drawQueue = [], drawFrame = 0;
+  function schedDraw(fn) { drawQueue.push(fn); if (!drawFrame) drawFrame = requestAnimationFrame(flushDraws); }
+  function flushDraws() { cancelAnimationFrame(drawFrame); drawFrame = 0; var q = drawQueue; drawQueue = []; q.forEach(function (f) { f(); }); }
+  function routeNow() {
     var m = /^#game-([a-z0-9]+)-([A-Za-z0-9]+)$/.exec(location.hash || ""), pm = /^#player-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
     var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : pm && BY_KEY[pm[1]] ? { l: BY_KEY[pm[1]], id: pm[2], player: true } : null, was = view;
+    vt = next && !next.player ? { l: next.l.key, id: String(next.id) } : !next && was && !was.player ? { l: was.l.key, id: String(was.id) } : null;
     view = next;
     clearTimeout(boxTimer);
     if (view && view.player) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadPlayer(); render(); return; }
@@ -1640,7 +1676,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
     } else clearTimeout(mkTimer);
     $("detail").replaceChildren();
     render();
-    if (!view && was) requestAnimationFrame(function () { window.scrollTo(0, scrollBack); });
+    if (!view && was) { window.scrollTo(0, scrollBack); requestAnimationFrame(function () { window.scrollTo(0, scrollBack); }); }
   }
   function findEvent(l, id) { return ((data[l.key] || {}).events || []).filter(function (e) { return String(e.id) === String(id); })[0] || null; }
   async function loadBox() {
@@ -1859,6 +1895,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   }
   var tablesKey = "";
   function renderDetail(tablesToo) {
+    if (moving) { dirty = true; return; }
     var d = $("detail");
     if (!view) { d.hidden = true; tablesKey = ""; return; }
     d.hidden = false;
@@ -1883,18 +1920,20 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
       h("div", { class: "dmid" }, [h("span", { class: "lg", text: (ev && ev.example ? "Example. " : "") + l.label }),
         state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" })]),
       h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), recLine(home), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
+    vtName(dh.querySelector(".dteam.away .nm"), "vt-away"); vtName(dh.querySelector(".dteam.home .nm"), "vt-home");
+    vtName(dh.querySelector(".dteam.away .big"), "vt-as"); vtName(dh.querySelector(".dteam.home .big"), "vt-hs");
     $("dwhere").replaceChildren(ev ? whereLine(ev.media, ev, ev.venue) : "");
     if (ev && !ev.example && POLY_PRE[l.key] && !odds.has(l.key + ":" + ev.id) && !oddsQueue.some(function (q) { return q.k === l.key + ":" + ev.id; })) {
       oddsQueue.push({ k: l.key + ":" + ev.id, l: l, ev: ev }); pumpOdds();
     }
     var dr = $("driver"), hs = ev ? hist.get(l.key + ":" + ev.id) : null;
     if (ev && hs && state !== "pre") {
-      dr.className = "driver";
+      dr.className = "driver"; vtName(dr, "vt-chart");
       var c = h("canvas", { "aria-label": "Margin over the game; home lead above the line" });
       var odc = odds.get(l.key + ":" + ev.id);
       dr.replaceChildren(c, odc && odc.shadow && odc.shadow.length > 1 ? h("p", { class: "cap", text: "Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing." }) : "");
-      requestAnimationFrame(function () { drawMargin(c, l, ev, hs, leagueScale(l), true, s); });
-    } else { dr.className = ""; dr.replaceChildren(); }
+      schedDraw(function () { drawMargin(c, l, ev, hs, leagueScale(l), true, s); });
+    } else { dr.className = ""; dr.style.viewTransitionName = ""; dr.replaceChildren(); }
     var note = $("dnote");
     note.className = "dnote" + (box.error ? " err" : "");
     if (box.error) note.textContent = "Couldn't load the box score: " + box.error;
@@ -1946,7 +1985,7 @@ table.stats td.gres { color: var(--gray); white-space: nowrap; }
   });
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { clearTimeout(timer); poll(); } });
 
-  setInterval(function () { if (mode === "live") renderStatus(); drawRug(); }, 1000);
+  setInterval(function () { if (moving) return; if (mode === "live") renderStatus(); drawRug(); }, 1000);
   var rt = null;
   window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(render, 150); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { render(); });
