@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Agate</title>
 <meta name="theme-color" content="#fffff8">
+<meta name="agate-version" content="2026.11.25-2115">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agate">
@@ -141,6 +142,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .f1 li:first-child { font-weight: 600; }
 .f1 .ex { font-size: 13px; color: var(--gray); font-style: italic; }
 
+.foot { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--gray); font-style: italic; }
 .feed h2 { font-size: 20px; margin-bottom: 4px; }
 .feed ol { list-style: none; margin: 0; padding: 0; max-height: 78vh; overflow-y: auto; }
 .feed li { padding: 5px 0 6px; border-top: 1px solid color-mix(in srgb, var(--rule) 60%, transparent); font-size: 15px; line-height: 1.35; }
@@ -269,6 +271,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       <p class="none" id="feed-none">Every score lands here as it happens, newest first.</p>
     </aside>
   </div>
+  <footer class="foot" id="foot"></footer>
 </div>
 
 <script>
@@ -1423,6 +1426,22 @@ table.mkt .pct { font-weight: 500; flex: none; }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { render(); });
 
   window.addEventListener("hashchange", route);
+  // Updates: a home-screen app keeps the page it loaded, so on every return
+  // to the app (and every 10 minutes) ask for version.json, bypassing caches,
+  // and reload when a newer version is published.
+  var VERSION = (document.querySelector('meta[name="agate-version"]') || {}).content || "dev";
+  $("foot").textContent = "Agate, version " + VERSION + ". Scores from ESPN, markets from Polymarket.";
+  async function checkVersion() {
+    if (VERSION === "dev") return;
+    try {
+      var r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+      var v = (await r.json()).v;
+      if (v && v !== VERSION) location.reload();
+    } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) checkVersion(); });
+  window.addEventListener("pageshow", checkVersion);
+  setInterval(checkVersion, 600000);
   route();
   poll();
   loadCircuits();
