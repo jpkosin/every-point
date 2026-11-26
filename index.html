@@ -175,6 +175,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dmid .live { display: block; font-style: normal; color: var(--ink); font-weight: 500; }
 .where { margin: -4px 0 0; display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 15px; color: var(--ink); }
 .where .wk b { font-weight: 400; font-style: italic; color: var(--gray); margin-right: 6px; }
+.driver .cap { margin: 2px 0 0; font-size: 14px; color: var(--gray); font-style: italic; }
 .driver canvas { display: block; width: 100%; height: 200px; }
 .dnote { margin: 0; color: var(--gray); font-style: italic; }
 .dnote.err { color: var(--home); }
@@ -595,7 +596,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var p = progress(l, ev), last = hs.pts[hs.pts.length - 1];
     if (!last) { hs.pts.push({ p: 0, a: 0, h: 0 }); last = hs.pts[0]; }
     if (p < last.p) p = last.p;
-    if (last.a !== a || last.h !== hh || p > last.p + 1e-4) hs.pts.push({ p: p, a: a, h: hh });
+    if (last.a !== a || last.h !== hh || p > last.p + 1e-4) hs.pts.push({ p: p, a: a, h: hh, t: ev.state === "in" ? Date.now() : undefined });
     return hs;
   }
   // One margin scale per league, so its sparklines compare honestly.
@@ -981,6 +982,24 @@ table.mkt .pct { font-weight: 500; flex: none; }
       g.fillStyle = c.gray; g.fillText("0", pad.l - 6, mid);
       g.fillStyle = c.away; g.fillText("+" + scale, pad.l - 6, Y(-scale));
     }
+    // The win-chance shadow, behind everything: home's chance minus the
+    // visitors', full height at certainty.
+    var od = odds.get(l.key + ":" + ev.id);
+    if (od && od.shadow && od.shadow.length > 1) {
+      var tp = timeToProgress(l, ev, hs, od.shadow), sp = new Path2D(), started = false, x0 = null, xl = null;
+      od.shadow.forEach(function (q) {
+        var pr = tp(q.t);
+        if (pr == null || pr > last.p + 1e-6) return;
+        var x = X(pr), y = mid - Math.max(-1, Math.min(1, q.s)) * amp;
+        if (!started) { sp.moveTo(x, mid); sp.lineTo(x, y); x0 = x; started = true; } else sp.lineTo(x, y);
+        xl = x;
+      });
+      if (started) {
+        var band = new Path2D(sp); band.lineTo(xl, mid); band.closePath();
+        g.fillStyle = alpha(c.ink, big ? 0.07 : 0.08); g.fill(band);
+        g.strokeStyle = alpha(c.ink, big ? 0.28 : 0.22); g.lineWidth = big ? 1 : 0.8; g.stroke(sp);
+      }
+    }
     if (pts.length < 2) return;
     var path = new Path2D(), prevM = 0;
     path.moveTo(X(0), Y(0));
@@ -1083,8 +1102,9 @@ table.mkt .pct { font-weight: 500; flex: none; }
     LEAGUES.forEach(function (l) {
       if (l.race || !POLY_PRE[l.key] || (prefs.league !== "all" && prefs.league !== l.key)) return;
       ((data[l.key] || {}).events || []).forEach(function (ev) {
-        if (ev.example || ev.state === "post") return;
-        var k = l.key + ":" + ev.id, o = odds.get(k), ttl = o && o.none ? 1800e3 : ev.state === "in" ? 60e3 : 300e3;
+        if (ev.example) return;
+        var k = l.key + ":" + ev.id, o = odds.get(k);
+        var ttl = ev.state === "post" ? (o && o.done ? 864e5 : 120e3) : o && o.none && !o.sh ? 1800e3 : ev.state === "in" ? 60e3 : 300e3;
         if ((o && now - o.at < ttl) || oddsQueue.some(function (q) { return q.k === k; })) return;
         oddsQueue.push({ k: k, l: l, ev: ev });
       });
@@ -1096,9 +1116,15 @@ table.mkt .pct { font-weight: 500; flex: none; }
       var q = oddsQueue.shift();
       oddsBusy++;
       (function (q) {
-        fetchOdds(q.l, q.ev).then(function (r) { odds.set(q.k, Object.assign({ at: Date.now() }, r)); })
+        fetchOdds(q.l, q.ev).then(function (r) {
+          if (!r.sh || q.ev.state === "pre") return r;
+          return fetchShadow(q.ev, r.sh).then(function (pts) {
+            r.shadow = pts; r.done = q.ev.state === "post" && pts.some(function (x) { return Math.abs(x.s) >= 0.97; });
+            return r;
+          }, function () { return r; });
+        }).then(function (r) { odds.set(q.k, Object.assign({ at: Date.now() }, r)); })
           .catch(function () { odds.set(q.k, { at: Date.now(), none: true }); })
-          .then(function () { oddsBusy--; clearTimeout(oddsRender); oddsRender = setTimeout(function () { if (!view) render(); }, 400); pumpOdds(); });
+          .then(function () { oddsBusy--; clearTimeout(oddsRender); oddsRender = setTimeout(render, 400); pumpOdds(); });
       })(q);
     }
   }
@@ -1116,21 +1142,60 @@ table.mkt .pct { font-weight: 500; flex: none; }
     });
     var m = two.filter(function (x) { return x.sportsMarketType === "moneyline"; })[0] || two.filter(function (x) { return norm(x.question) === norm(e.title); })[0] ||
       two.sort(function (a, b) { return (+b.volumeNum || 0) - (+a.volumeNum || 0); })[0];
-    var best = null;
+    var best = null, sh = null;
     if (m) {
-      var names = parseList(m.outcomes), ps = parseList(m.outcomePrices).map(Number), hi = ps[0] >= ps[1] ? 0 : 1;
+      var names = parseList(m.outcomes), ps = parseList(m.outcomePrices).map(Number), toks = parseList(m.clobTokenIds), hi = ps[0] >= ps[1] ? 0 : 1;
+      var hIdx = mentions(names[0], s.home) ? 0 : mentions(names[1], s.home) ? 1 : -1;
+      if (hIdx >= 0 && toks[hIdx]) sh = { home: toks[hIdx], away: null };
       best = { label: names[hi], p: ps[hi] };
-      if (!(best.p > 0.5)) return { none: true };
     } else {
       // soccer: one yes/no market each for home win, draw and away win
+      var hm = null, am = null;
       ms.filter(function (x) { return x.sportsMarketType === "moneyline" || (e.negRisk && /^\[?"?yes/i.test(String(x.outcomes))); }).forEach(function (x) {
         var p = +parseList(x.outcomePrices)[0] || 0, label = x.groupItemTitle || x.question || "";
+        if (!/draw/i.test(label) && mentions(label, s.home)) hm = x; else if (!/draw/i.test(label) && mentions(label, s.away)) am = x;
         if (!best || p > best.p) best = { label: label, p: p };
       });
-      if (!best || /draw/i.test(best.label)) return { none: true };
+      if (hm && am) sh = { home: parseList(hm.clobTokenIds)[0], away: parseList(am.clobTokenIds)[0] };
+      if (best && /draw/i.test(best.label)) best = null;
     }
-    var side = mentions(best.label, s.home) ? "home" : mentions(best.label, s.away) ? "away" : null;
-    return side ? { side: side, p: best.p } : { none: true };
+    var side = best && (!m || best.p > 0.5) ? (mentions(best.label, s.home) ? "home" : mentions(best.label, s.away) ? "away" : null) : null;
+    return side ? { side: side, p: best.p, sh: sh } : { none: true, sh: sh };
+  }
+  // The shadow: Polymarket's price history for the game, as the home side's
+  // chance minus the visitors' (from -1 to +1, home above the line), from
+  // half an hour before the start to now.
+  async function fetchShadow(ev, sh) {
+    var from = Math.floor(Date.parse(ev.date) / 1000) - 1800;
+    function hist(tok) { return getJSON("https://clob.polymarket.com/prices-history?market=" + encodeURIComponent(tok) + "&startTs=" + from + "&fidelity=1").then(function (r) { return r.history || []; }); }
+    var hh = await hist(sh.home), aa = sh.away ? await hist(sh.away) : null, j = 0;
+    return hh.map(function (q) {
+      if (!aa) return { t: q.t * 1000, s: 2 * q.p - 1 };
+      while (j < aa.length - 1 && aa[j + 1].t <= q.t) j++;
+      return { t: q.t * 1000, s: q.p - ((aa[j] || {}).p || 0) };
+    });
+  }
+  // Clock time to game progress: the scheduled start is 0, then every score
+  // and clock reading seen live, then now (live) or the moment the market
+  // settled (final).
+  function timeToProgress(l, ev, hs, pts) {
+    var anchors = [[Date.parse(ev.date), 0]];
+    hs.pts.forEach(function (q) { if (q.t) anchors.push([q.t, q.p]); });
+    var last = hs.pts[hs.pts.length - 1] || { p: 0 };
+    if (ev.state === "in") anchors.push([Date.now(), last.p]);
+    else if (ev.state === "post") {
+      var end = pts.filter(function (q) { return q.t > anchors[0][0] && Math.abs(q.s) >= 0.97; })[0] || pts[pts.length - 1];
+      if (end && end.t > anchors[anchors.length - 1][0]) anchors.push([end.t, last.p]);
+    }
+    anchors.sort(function (a, b) { return a[0] - b[0]; });
+    return function (t) {
+      if (t <= anchors[0][0]) return null;
+      for (var i = 1; i < anchors.length; i++) if (t <= anchors[i][0]) {
+        var a = anchors[i - 1], b = anchors[i];
+        return a[1] + (b[1] - a[1]) * (t - a[0]) / Math.max(1, b[0] - a[0]);
+      }
+      return anchors.length > 1 ? anchors[anchors.length - 1][1] : null;
+    };
   }
   function favMark(l, ev, side) {
     var o = odds.get(l.key + ":" + ev.id);
@@ -1254,7 +1319,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       });
       main.append(h("section", { class: "group" }, [
         h("h2", null, [g[1], h("span", { class: "c", text: String(items.length + nf1) })]),
-        g[0] !== "pre" && items.length && !main.querySelector(".note") ? h("p", { class: "note", text: "Each line traces the margin over the game: above the rule the home team leads, below it the visitors, each in its team's colour. Dots are scores seen live; one scale per league. ★ marks Polymarket's favourite to win." }) : null,
+        g[0] !== "pre" && items.length && !main.querySelector(".note") ? h("p", { class: "note", text: "Each line traces the margin over the game: above the rule the home team leads, below it the visitors, each in its team's colour. Dots are scores seen live; one scale per league. The grey band behind is Polymarket's win chance over the game, home above the line. ★ marks Polymarket's favourite to win." }) : null,
         f1, items.length ? agate(items, g[0]) : null]));
     });
     if (!any) {
@@ -1441,11 +1506,15 @@ table.mkt .pct { font-weight: 500; flex: none; }
         state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" })]),
       h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
     $("dwhere").replaceChildren(ev ? whereLine(ev.media, ev, ev.venue) : "");
+    if (ev && !ev.example && POLY_PRE[l.key] && !odds.has(l.key + ":" + ev.id) && !oddsQueue.some(function (q) { return q.k === l.key + ":" + ev.id; })) {
+      oddsQueue.push({ k: l.key + ":" + ev.id, l: l, ev: ev }); pumpOdds();
+    }
     var dr = $("driver"), hs = ev ? hist.get(l.key + ":" + ev.id) : null;
     if (ev && hs && state !== "pre") {
       dr.className = "driver";
       var c = h("canvas", { "aria-label": "Margin over the game; home lead above the line" });
-      dr.replaceChildren(c);
+      var odc = odds.get(l.key + ":" + ev.id);
+      dr.replaceChildren(c, odc && odc.shadow && odc.shadow.length > 1 ? h("p", { class: "cap", text: "Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing." }) : "");
       requestAnimationFrame(function () { drawMargin(c, l, ev, hs, leagueScale(l), true, s); });
     } else { dr.className = ""; dr.replaceChildren(); }
     var note = $("dnote");

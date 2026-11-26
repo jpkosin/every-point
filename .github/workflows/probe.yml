@@ -12,7 +12,7 @@ jobs:
           def get(u): return json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
           seen = {}
           for grp in ("80", "81"):
-            d = get("https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=%s&limit=500&dates=20261101-20261130" % grp)
+            d = get("https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=%s&limit=500&week=13&seasontype=2" % grp)
             for e in d.get("events", []):
               for c in e["competitions"][0]["competitors"]:
                 t = c["team"]; cid = t.get("conferenceId")
