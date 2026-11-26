@@ -1,0 +1,51 @@
+name: circuits
+on:
+  push:
+    paths: [".github/workflows/circuits.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build circuits.json from bacinger/f1-circuits (MIT)
+        shell: python
+        run: |
+          import json, math, urllib.request
+          src = "https://raw.githubusercontent.com/bacinger/f1-circuits/master/f1-circuits.geojson"
+          g = json.loads(urllib.request.urlopen(src, timeout=60).read())
+          def rdp(pts, eps):
+            if len(pts) < 3: return pts
+            (x1, y1), (x2, y2) = pts[0], pts[-1]
+            dx, dy = x2 - x1, y2 - y1; L = math.hypot(dx, dy) or 1e-9
+            dmax, idx = 0, 0
+            for i in range(1, len(pts) - 1):
+              d = abs(dy * pts[i][0] - dx * pts[i][1] + x2 * y1 - y2 * x1) / L
+              if d > dmax: dmax, idx = d, i
+            if dmax > eps: return rdp(pts[:idx + 1], eps)[:-1] + rdp(pts[idx:], eps)
+            return [pts[0], pts[-1]]
+          out = []
+          for f in g["features"]:
+            geom = f["geometry"]; coords = geom["coordinates"]
+            if geom["type"] == "MultiLineString": coords = max(coords, key=len)
+            lat0 = sum(c[1] for c in coords) / len(coords)
+            k = math.cos(math.radians(lat0))
+            xy = [(c[0] * k, -c[1]) for c in coords]
+            minx = min(p[0] for p in xy); miny = min(p[1] for p in xy)
+            span = max(max(p[0] for p in xy) - minx, max(p[1] for p in xy) - miny) or 1
+            xy = [((p[0] - minx) / span * 1000, (p[1] - miny) / span * 1000) for p in xy]
+            xy = rdp(xy, 1.2)
+            p = f.get("properties", {})
+            out.append({"id": p.get("id"), "name": p.get("Name"), "location": p.get("Location"),
+                        "length": p.get("length"), "pts": [[round(x), round(y)] for x, y in xy]})
+          json.dump({"source": "github.com/bacinger/f1-circuits (MIT License)", "circuits": out}, open("circuits.json", "w"), separators=(",", ":"))
+          print(len(out), "circuits", sum(len(c["pts"]) for c in out), "points")
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add circuits.json
+          git commit -m "Add simplified F1 circuit outlines (bacinger/f1-circuits, MIT)" || echo "no change"
+          git push
