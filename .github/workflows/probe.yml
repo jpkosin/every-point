@@ -1,0 +1,27 @@
+name: probe
+on:
+  push:
+    paths: [".github/workflows/probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: python
+        run: |
+          import json, urllib.request
+          def get(u):
+            r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Origin": "https://jpkosin.github.io"}), timeout=30)
+            return r.headers.get("Access-Control-Allow-Origin"), json.loads(r.read())
+          def short(o, d=0):
+            if d > 5: return "…"
+            if isinstance(o, dict): return {k: short(v, d+1) for k, v in list(o.items())[:22]}
+            if isinstance(o, list): return [short(v, d+1) for v in o[:3]] + ([f"+{len(o)-3}"] if len(o) > 3 else [])
+            if isinstance(o, str) and len(o) > 70: return o[:70] + "…"
+            return o
+          for sport, aid in [("basketball/nba", "3112335"), ("football/nfl", "3139477"), ("hockey/nhl", "3895074"), ("soccer/eng.1", "253989")]:
+            for part in ["", "/overview", "/stats", "/gamelog"]:
+              u = "https://site.web.api.espn.com/apis/common/v3/sports/%s/athletes/%s%s" % (sport, aid, part)
+              try:
+                a, d = get(u); print("==", sport, part or "(bio)", "ACAO", a, "keys", list(d.keys())[:14])
+                print(json.dumps(short(d), indent=0)[:1500])
+              except Exception as ex: print("ERR", u, ex)
