@@ -1,0 +1,39 @@
+name: probe
+on:
+  push:
+    paths: [".github/workflows/probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        shell: python
+        run: |
+          import json, urllib.request
+          def short(o, d=0):
+            if d > 7: return "…"
+            if isinstance(o, dict): return {k: short(v, d+1) for k, v in list(o.items())[:30]}
+            if isinstance(o, list): return [short(v, d+1) for v in o[:2]] + ([f"+{len(o)-2} more"] if len(o) > 2 else [])
+            if isinstance(o, str) and len(o) > 100: return o[:100] + "…"
+            return o
+          for u in ["https://site.api.espn.com/apis/v2/sports/racing/f1/standings",
+                    "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=20261123"]:
+            print("=====", u)
+            try:
+              r = urllib.request.urlopen(urllib.request.Request(u, headers={"Origin": "https://jpkosin.github.io", "User-Agent": "Mozilla/5.0"}), timeout=25)
+              print("status", r.status, "ACAO:", r.headers.get("Access-Control-Allow-Origin"))
+              b = json.loads(r.read())
+              if "standings" in u:
+                for ch in b.get("children", []):
+                  print("CHILD", ch.get("name"), ch.get("abbreviation"))
+                  for e in (ch.get("standings") or {}).get("entries", [])[:2]:
+                    print(json.dumps(short(e), indent=1)[:2500])
+              else:
+                ev = (b.get("events") or [])
+                print("events", [(e.get("name"), e.get("date")) for e in ev])
+                if ev:
+                  c = ev[0]["competitions"][-1]
+                  print(json.dumps(short({k: c.get(k) for k in ["type", "status", "date"]}), indent=1)[:1500])
+                  print(json.dumps(short((c.get("competitors") or [])[:1]), indent=1)[:2500])
+            except Exception as e:
+              print("ERR", e)
