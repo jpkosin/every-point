@@ -1,0 +1,54 @@
+name: icons
+on:
+  push:
+    paths: [".github/workflows/icons.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pillow
+      - name: Draw B&L in EB Garamond (SIL Open Font License)
+        shell: python
+        run: |
+          import urllib.request
+          from PIL import Image, ImageDraw, ImageFont
+          url = "https://github.com/google/fonts/raw/main/ofl/ebgaramond/EBGaramond%5Bwght%5D.ttf"
+          open("/tmp/ebg.ttf", "wb").write(urllib.request.urlopen(url, timeout=60).read())
+          BG, INK, RED = "#fffff8", "#111111", "#9b2d26"
+          def icon(n):
+            S = 1024
+            im = Image.new("RGB", (S, S), BG); d = ImageDraw.Draw(im)
+            f = ImageFont.truetype("/tmp/ebg.ttf", 400)
+            try: f.set_variation_by_axes([500])
+            except Exception: pass
+            parts = [("B", INK), ("&", RED), ("L", INK)]
+            gap = -6
+            widths = [d.textlength(t, font=f) for t, _ in parts]
+            total = sum(widths) + gap * 2
+            scale = (S * 0.70) / total
+            f = ImageFont.truetype("/tmp/ebg.ttf", int(400 * scale))
+            try: f.set_variation_by_axes([500])
+            except Exception: pass
+            widths = [d.textlength(t, font=f) for t, _ in parts]
+            total = sum(widths) + gap * 2 * scale
+            top, bottom = d.textbbox((0, 0), "BL", font=f, anchor="ls")[1], 0
+            x = (S - total) / 2
+            y = S / 2 - top / 2
+            for (t, col), w in zip(parts, widths):
+              d.text((x, y), t, font=f, fill=col, anchor="ls")
+              x += w + gap * scale
+            return im.resize((n, n), Image.LANCZOS)
+          for n in (180, 192, 512):
+            icon(n).save(f"icon-{n}.png")
+          icon(64).save("favicon.png")
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add icon-*.png favicon.png
+          git commit -m "B&L app icon in EB Garamond" || echo "no change"
+          git push
