@@ -228,7 +228,8 @@ table.mkt .pct { font-weight: 500; flex: none; }
 .standings h3 { margin: 0 0 4px; font-weight: 400; font-style: italic; font-size: 19px; }
 .standings td.who { text-align: left; }
 .standings td.gap { color: var(--gray); }
-@keyframes hot { 0%, 40% { background: var(--hot); } 100% { background: transparent; } }
+/* The flash after a score, in the scoring team's colour (yellow if unknown). */
+@keyframes hot { 0%, 40% { background: var(--hotc, var(--hot)); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { table.agate tr.hot td, .feed li.new { animation: none; } }
 @media (max-width: 600px) {
   .app header { padding-left: 0; }
@@ -1086,7 +1087,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var canvas = h("canvas", { "aria-label": "Margin over the game" });
     var play = ev.state === "in" ? [ev.down, ev.play].filter(Boolean).join(". ") : "";
     var row = h("tr", { class: "row" + (hot ? " hot" : ""), tabindex: "0",
-      style: hot ? "--d:-" + ((now - lastMark.at) / 1000).toFixed(2) + "s" : null,
+      style: hot ? "--hotc:" + alpha(tc[lastMark.side] || tc.home, 0.2) : null,
       "aria-label": (s.away.full || s.away.abbr || "") + " at " + (s.home.full || s.home.abbr || "") + ": game page",
       onclick: function () { openGame(l, ev); },
       onkeydown: function (e) { if (e.key === "Enter" && e.target === row) openGame(l, ev); } }, [
@@ -1191,7 +1192,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var shown = feed.filter(function (f) { return prefs.league === "all" || f.league.key === prefs.league; });
     $("feed-none").hidden = shown.length > 0;
     shown.forEach(function (f) {
-      ol.append(h("li", { class: f.fresh ? "new" : null }, [
+      ol.append(h("li", { class: f.fresh ? "new" : null, style: f.color ? "--hotc:" + alpha(f.color, 0.2) : null }, [
         h("time", { text: new Date(f.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) }),
         h("span", { class: "b", text: f.badge }), h("span", { class: "t " + f.side, style: f.color ? "color:" + f.color : null, text: f.who }), " ", f.kind,
         h("span", { class: "l", text: f.league.label + ". " + f.line + (f.detail ? ", " + f.detail : "") })]));
