@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1559">
+<meta name="agate-version" content="2026.11.26-1609">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -867,6 +867,27 @@ header { view-transition-name: masthead; }
   // Polymarket, matched to a game by team names and its date in US Eastern
   // time; the biggest markets by volume, prices as chances.
   var POLY = "https://gamma-api.polymarket.com";
+  // Every Polymarket request goes through here. If Polymarket refuses one
+  // (too many requests, or no answer) all of them pause, 30 s at first and
+  // doubling to 10 min, so a busy night can't lock the phone out.
+  var poly = { pauseUntil: 0, fails: 0, why: "" };
+  async function polyJSON(url) {
+    if (Date.now() < poly.pauseUntil) throw new Error(poly.why || "paused");
+    var r;
+    try { r = await fetch(url, { cache: "no-store" }); }
+    catch (e) { r = null; }
+    if (!r || r.status === 429 || r.status >= 500) {
+      poly.why = !r ? "no answer" : r.status === 429 ? "too many requests" : "error " + r.status;
+      if (Date.now() >= poly.pauseUntil) {   // requests already in flight don't stack the pause
+        poly.fails++;
+        poly.pauseUntil = Date.now() + Math.min(600e3, 30e3 * Math.pow(2, poly.fails - 1));
+      }
+      throw new Error(poly.why);
+    }
+    if (!r.ok) throw new Error("Polymarket answered " + r.status);
+    poly.fails = 0;
+    return r.json();
+  }
   var POLY_PRE = { nfl: "nfl", nba: "nba", wnba: "wnba", mlb: "mlb", nhl: "nhl", mls: "mls", ncaaf: "cfb", ncaam: "cbb", ncaaw: "cwbb",
     epl: "epl", ucl: "ucl", laliga: "lal", bund: "bun", seriea: "sea", ligue1: "fl1", ligamx: "mex", nwsl: "nwsl" };
   // A game's Polymarket events: first by its page address (US sports list the
@@ -877,11 +898,11 @@ header { view-transition-name: masthead; }
     var s = sides(ev), pre = POLY_PRE[l.key], events = [];
     if (pre && s.away.abbr && s.home.abbr) {
       var pair = l.sport === "soccer" ? [s.home.abbr, s.away.abbr] : [s.away.abbr, s.home.abbr];
-      try { events = await getJSON(POLY + "/events?slug=" + encodeURIComponent([pre].concat(pair, [etDate(ev.date)]).join("-").toLowerCase())); } catch (e) { events = []; }
+      try { events = await polyJSON(POLY + "/events?slug=" + encodeURIComponent([pre].concat(pair, [etDate(ev.date)]).join("-").toLowerCase())); } catch (e) { events = []; }
     }
     if (!events.length && search) {
       var q = l.sport === "soccer" ? (s.home.name || s.home.abbr) + " " + (s.away.name || s.away.abbr) : (s.away.name || s.away.abbr) + " " + (s.home.name || s.home.abbr);
-      var r = await getJSON(POLY + "/public-search?q=" + encodeURIComponent(q) + "&limit_per_type=20" + (ev.state === "post" ? "" : "&events_status=active"));
+      var r = await polyJSON(POLY + "/public-search?q=" + encodeURIComponent(q) + "&limit_per_type=20" + (ev.state === "post" ? "" : "&events_status=active"));
       events = (r.events || []).filter(function (e) { return mentions(e.title, s.away) && mentions(e.title, s.home) && near(e.startTime || e.eventDate || e.endDate, ev.date, 1.5); });
     }
     return events.sort(function (a, b) { return (+b.volume || 0) - (+a.volume || 0); });
@@ -905,7 +926,7 @@ header { view-transition-name: masthead; }
     var events = [];
     if (l.race) {
       var gp = /(\S+(?:\s+\S+)?)\s+Grand Prix/i.exec(ev.name || ""), place = gp ? gp[1].split(" ").pop() : (ev.name || "");
-      var r = await getJSON(POLY + "/public-search?q=" + encodeURIComponent(place + " Grand Prix") + "&limit_per_type=20");
+      var r = await polyJSON(POLY + "/public-search?q=" + encodeURIComponent(place + " Grand Prix") + "&limit_per_type=20");
       events = (r.events || []).filter(function (e) { return norm(e.title).indexOf(norm(place)) >= 0 && near(e.endDate || e.startTime, ev.date, 8); });
     } else {
       events = await findPoly(l, ev, true);
@@ -930,12 +951,15 @@ header { view-transition-name: masthead; }
     if (!ev) return;
     if (mk.key !== key) mk = { key: key, poly: null, at: 0 };
     var got;
-    try { got = await polyFor(l, ev); } catch (e) { got = { error: "Polymarket couldn't be reached." }; }
+    try { got = await polyFor(l, ev); }
+    catch (e) { got = { error: "Polymarket isn't answering (" + e.message + "). Trying again shortly." }; }
     if (mk.key !== key) return;
+    if (got.error && mk.poly && !mk.poly.error) got = mk.poly;   // keep the last good prices on screen
     mk.poly = got;
     mk.at = Date.now();
     renderMarkets();
-    if (view && mk.key === key && ev.state !== "post") mkTimer = setTimeout(loadMarkets, 60000);
+    if (view && mk.key === key && (ev.state !== "post" || got.error))
+      mkTimer = setTimeout(loadMarkets, Math.max(60000, poly.pauseUntil - Date.now() + 1000));
   }
   function marketSection(name, got) {
     var kids = [h("h2", { text: name })];
@@ -1278,12 +1302,13 @@ header { view-transition-name: masthead; }
   var odds = new Map(), oddsQueue = [], oddsBusy = 0, oddsRender = null;
   function wantOdds() {
     var now = Date.now();
+    if (now < poly.pauseUntil) return;
     LEAGUES.forEach(function (l) {
       if (l.race || !POLY_PRE[l.key] || (prefs.league !== "all" && prefs.league !== l.key)) return;
       ((data[l.key] || {}).events || []).forEach(function (ev) {
         if (ev.example) return;
         var k = l.key + ":" + ev.id, o = odds.get(k);
-        var ttl = ev.state === "post" ? (o && o.done ? 864e5 : 120e3) : o && o.none && !o.sh ? 1800e3 : ev.state === "in" ? 60e3 : 300e3;
+        var ttl = ev.state === "post" ? (o && o.done ? 864e5 : 300e3) : o && o.none && !o.sh ? 1800e3 : ev.state === "in" ? (l.slow ? 180e3 : 60e3) : 600e3;
         if ((o && now - o.at < ttl) || oddsQueue.some(function (q) { return q.k === k; })) return;
         oddsQueue.push({ k: k, l: l, ev: ev });
       });
@@ -1291,6 +1316,7 @@ header { view-transition-name: masthead; }
     pumpOdds();
   }
   function pumpOdds() {
+    if (Date.now() < poly.pauseUntil) return;
     while (oddsBusy < 4 && oddsQueue.length) {
       var q = oddsQueue.shift();
       oddsBusy++;
@@ -1302,7 +1328,7 @@ header { view-transition-name: masthead; }
             return r;
           }, function () { return r; });
         }).then(function (r) { odds.set(q.k, Object.assign({ at: Date.now() }, r)); })
-          .catch(function () { odds.set(q.k, { at: Date.now(), none: true }); })
+          .catch(function () { var o = odds.get(q.k); odds.set(q.k, Object.assign({}, o || { none: true }, { at: Date.now() - 50e3 })); })
           .then(function () { oddsBusy--; clearTimeout(oddsRender); oddsRender = setTimeout(render, 400); pumpOdds(); });
       })(q);
     }
@@ -1346,7 +1372,7 @@ header { view-transition-name: masthead; }
   // half an hour before the start to now.
   async function fetchShadow(ev, sh) {
     var from = Math.floor(Date.parse(ev.date) / 1000) - 1800;
-    function hist(tok) { return getJSON("https://clob.polymarket.com/prices-history?market=" + encodeURIComponent(tok) + "&startTs=" + from + "&fidelity=1").then(function (r) { return r.history || []; }); }
+    function hist(tok) { return polyJSON("https://clob.polymarket.com/prices-history?market=" + encodeURIComponent(tok) + "&startTs=" + from + "&fidelity=1").then(function (r) { return r.history || []; }); }
     var hh = await hist(sh.home), aa = sh.away ? await hist(sh.away) : null, j = 0;
     return hh.map(function (q) {
       if (!aa) return { t: q.t * 1000, s: 2 * q.p - 1 };

@@ -1,9 +1,0 @@
-name: probe
-on: push
-jobs:
-  p:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          for u in "https://gamma-api.polymarket.com/events?slug=nfl-phi-dal-2026-11-26" "https://gamma-api.polymarket.com/public-search?q=Eagles%20Cowboys&limit_per_type=5" "https://clob.polymarket.com/time"; do
-            echo "== $u"; curl -s -o /tmp/b -w "%{http_code} %{time_total}s\n" -H "Origin: https://jpkosin.github.io" -D /tmp/h "$u"; grep -i 'access-control\|ratelimit\|retry\|cf-' /tmp/h; head -c 300 /tmp/b; echo; done
