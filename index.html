@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Score Card</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1217">
+<meta name="agate-version" content="2026.11.26-1224">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Score Card">
@@ -168,6 +168,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dteam { display: grid; min-width: 0; }
 .dteam.home { text-align: right; justify-items: end; }
 .dteam .nm { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.dteam .rec { font-size: 14px; font-style: italic; color: var(--gray); line-height: 1.2; }
 .dteam .big { font-size: clamp(44px, 8vw, 72px); line-height: 1; }
 .dteam.away .nm { color: var(--away); } .dteam.home .nm { color: var(--home); }
 .dmid { text-align: center; color: var(--gray); font-style: italic; padding-bottom: 8px; }
@@ -366,6 +367,14 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var v = c.venue || {}, a = v.address || {};
     return v.fullName ? [v.fullName, a.city, a.state || a.country].filter(Boolean).join(", ") : null;
   }
+  // The record that bears on this game: home teams at home, visitors on the road.
+  function splitRecord(rec, side) {
+    var want = side === "home" ? /^home$/i : /^(road|away)$/i;
+    var r = (rec || []).filter(function (x) { return want.test(x.type || "") || want.test(x.name || ""); })[0];
+    return r && r.summary ? r.summary + (side === "home" ? " at home" : " away") : null;
+  }
+  // Records as a printed page sets them: 8–3, with an en dash.
+  function dash(r) { return r ? String(r).replace(/(\d)-(?=\d)/g, "$1\u2013") : r; }
   function game(e) {
     var c = (e.competitions || [{}])[0] || {}, st = e.status || {}, t = st.type || {}, sit = c.situation || {}, lp = sit.lastPlay || {};
     return { id: e.id, date: e.date, state: t.state, detail: t.shortDetail, clock: st.clock, period: st.period,
@@ -373,7 +382,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
       teams: (c.competitors || []).map(function (x) {
         var tm = x.team || {}, rec = x.records || [];
         return { id: tm.id, abbr: tm.abbreviation, name: tm.shortDisplayName || tm.name, full: tm.displayName, score: x.score, color: tm.color, alt: tm.alternateColor, conf: tm.conferenceId,
-          home: x.homeAway === "home", record: rec[0] ? rec[0].summary : null, ls: (x.linescores || []).map(function (l) { return l.value; }) };
+          home: x.homeAway === "home", record: rec[0] ? rec[0].summary : null, recSplit: splitRecord(rec, x.homeAway), ls: (x.linescores || []).map(function (l) { return l.value; }) };
       }) };
   }
   async function getLeague(l, d) {
@@ -1223,11 +1232,11 @@ table.mkt .pct { font-weight: 500; flex: none; }
       "aria-label": (s.away.full || s.away.abbr || "") + " at " + (s.home.full || s.home.abbr || "") + ": game page",
       onclick: function () { openGame(l, ev); },
       onkeydown: function (e) { if (e.key === "Enter" && e.target === row) openGame(l, ev); } }, [
-      h("td", { class: "tm a", title: (s.away.full || "") + (s.away.record ? " (" + s.away.record + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.away }), s.away.abbr || "?", favMark(l, ev, "away")]),
+      h("td", { class: "tm a", title: (s.away.full || "") + (s.away.record ? " (" + dash(s.away.record) + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.away }), s.away.abbr || "?", favMark(l, ev, "away")]),
       h("td", { class: "sc" + (a > hh ? " lead" : ""), text: a == null ? "" : String(a) }),
       h("td", { class: "sp" }, [canvas]),
       h("td", { class: "sc h" + (hh > a ? " lead" : ""), text: hh == null ? "" : String(hh) }),
-      h("td", { class: "tm", title: (s.home.full || "") + (s.home.record ? " (" + s.home.record + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.home }), s.home.abbr || "?", favMark(l, ev, "home")]),
+      h("td", { class: "tm", title: (s.home.full || "") + (s.home.record ? " (" + dash(s.home.record) + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.home }), s.home.abbr || "?", favMark(l, ev, "home")]),
       h("td", { class: "st" + (ev.state === "in" ? " live" : ""), text: (ev.example ? "Example. " : "") + (ev.detail || (ev.state === "post" ? "Final" : "")) }),
       h("td", { class: "lp", title: play || null, text: play })]);
     if (hot) row.querySelectorAll("td").forEach(function (td) { td.style.animationDelay = "-" + ((now - lastMark.at) / 1000).toFixed(2) + "s"; });
@@ -1240,9 +1249,9 @@ table.mkt .pct { font-weight: 500; flex: none; }
       onclick: function () { openGame(l, ev); }, onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
       h("td", { class: "when", text: whenText(ev.date) }),
       h("td", { class: "mu", title: (s.away.full || "") + " at " + (s.home.full || "") }, [
-        s.away.abbr || "?", favMark(l, ev, "away"), s.away.record ? h("span", { class: "rec", text: s.away.record }) : null,
+        s.away.abbr || "?", favMark(l, ev, "away"), s.away.record ? h("span", { class: "rec", text: dash(s.away.record) }) : null,
         h("span", { class: "at", text: "at" }),
-        s.home.abbr || "?", favMark(l, ev, "home"), s.home.record ? h("span", { class: "rec", text: s.home.record }) : null,
+        s.home.abbr || "?", favMark(l, ev, "home"), s.home.record ? h("span", { class: "rec", text: dash(s.home.record) }) : null,
         ev.example ? h("span", { class: "rec", text: " (example)" }) : null])]);
     return row;
   }
@@ -1535,6 +1544,10 @@ table.mkt .pct { font-weight: 500; flex: none; }
     renderMarkets();
   }
 
+  function recLine(t) {
+    var parts = [dash(t.record), dash(t.recSplit)].filter(Boolean);
+    return parts.length ? h("span", { class: "rec", text: parts.join(" · ") }) : "";
+  }
   var tablesKey = "";
   function renderDetail(tablesToo) {
     var d = $("detail");
@@ -1556,10 +1569,10 @@ table.mkt .pct { font-weight: 500; flex: none; }
     var dh = $("dhead");
     dh.className = "dhead";
     dh.replaceChildren(
-      h("div", { class: "dteam away" }, [h("span", { class: "nm", style: tc ? "color:" + tc.away : null, text: away.full || away.name || "" }), h("span", { class: "big", text: state === "pre" ? "–" : String(away.score == null ? "" : away.score) })]),
+      h("div", { class: "dteam away" }, [h("span", { class: "nm", style: tc ? "color:" + tc.away : null, text: away.full || away.name || "" }), recLine(away), h("span", { class: "big", text: state === "pre" ? "–" : String(away.score == null ? "" : away.score) })]),
       h("div", { class: "dmid" }, [h("span", { class: "lg", text: (ev && ev.example ? "Example. " : "") + l.label }),
         state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" })]),
-      h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
+      h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), recLine(home), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
     $("dwhere").replaceChildren(ev ? whereLine(ev.media, ev, ev.venue) : "");
     if (ev && !ev.example && POLY_PRE[l.key] && !odds.has(l.key + ":" + ev.id) && !oddsQueue.some(function (q) { return q.k === l.key + ":" + ev.id; })) {
       oddsQueue.push({ k: l.key + ":" + ev.id, l: l, ev: ev }); pumpOdds();
