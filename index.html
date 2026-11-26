@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1550">
+<meta name="agate-version" content="2026.11.26-1555">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -66,6 +66,13 @@ header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-i
    bar, and the band turns pure black to join it seamlessly. */
 @media (display-mode: standalone) { :root { --band: #000; } }
 .standalone { --band: #000; }
+/* iOS 26 ignores the status-bar style and tints that strip from the page itself:
+   paint it solid black, fixed, so nothing cream shows or scrolls under the clock. */
+html.standalone { background: #000; }
+html.standalone body { min-height: 100vh; }
+html.standalone::before { content: ""; position: fixed; top: 0; left: 0; right: 0;
+  height: env(safe-area-inset-top, 0px); background: #000; z-index: 100; pointer-events: none; }
+@media (display-mode: standalone) { html { background: #000; } }
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
 .livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
