@@ -8,48 +8,28 @@ jobs:
     steps:
       - shell: python
         run: |
-          import json, urllib.request, time
-          def get(u, origin=True):
-            r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Origin": "https://jpkosin.github.io"}), timeout=25)
-            return r.headers.get("Access-Control-Allow-Origin"), json.loads(r.read())
-          def short(o, d=0):
-            if d > 6: return "…"
-            if isinstance(o, dict): return {k: short(v, d+1) for k, v in list(o.items())[:25]}
-            if isinstance(o, list): return [short(v, d+1) for v in o[:2]] + ([f"+{len(o)-2}"] if len(o) > 2 else [])
-            if isinstance(o, str) and len(o) > 80: return o[:80] + "…"
-            return o
-          # Polymarket: a live NFL game today and its price history
-          acao, d = get("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard")
-          for e in d["events"][:3]:
-            c = e["competitions"][0]; t = {x["homeAway"]: x["team"]["abbreviation"] for x in c["competitors"]}
-            print("NFL", e["date"], t, e["status"]["type"]["state"], "conferenceCompetition", c.get("conferenceCompetition"), "team keys", list(c["competitors"][0]["team"].keys()))
-          slug = None
-          for e in d["events"]:
-            c = e["competitions"][0]; t = {x["homeAway"]: x["team"]["abbreviation"].lower() for x in c["competitors"]}
-            s = "nfl-%s-%s-%s" % (t["away"], t["home"], "2026-11-26")
-            a, ev = get("https://gamma-api.polymarket.com/events?slug=" + s)
-            if ev: slug = s; break
-          print("poly slug", slug)
-          if slug:
-            for m in ev[0]["markets"][:6]:
-              print("  m", m.get("question"), m.get("sportsMarketType"), m.get("outcomes"), "tokens", str(m.get("clobTokenIds"))[:60], "start", m.get("gameStartTime"), m.get("startDate"))
-            m = [m for m in ev[0]["markets"] if m.get("sportsMarketType") == "moneyline"][0]
-            tok = json.loads(m["clobTokenIds"])[0]
-            for u in ["https://clob.polymarket.com/prices-history?market=%s&interval=1d&fidelity=5" % tok,
-                      "https://clob.polymarket.com/prices-history?market=%s&startTs=%d&fidelity=1" % (tok, int(time.time()) - 6*3600)]:
-              try:
-                a, h = get(u); print("CLOB", u[-40:], "ACAO", a, "n", len(h.get("history", [])), h.get("history", [])[:3], h.get("history", [])[-2:])
-              except Exception as ex: print("CLOB ERR", ex)
-          # ESPN divisions / conferences
-          for u in ["https://site.api.espn.com/apis/site/v2/sports/football/nfl/groups",
-                    "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/groups",
-                    "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/groups",
-                    "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/groups",
-                    "https://site.api.espn.com/apis/site/v2/sports/football/college-football/groups",
-                    "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/groups"]:
+          import json, urllib.request
+          def get(u): return json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
+          seen = {}
+          for grp in ("80", "81"):
+            d = get("https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=%s&limit=500&dates=20261101-20261130" % grp)
+            for e in d.get("events", []):
+              for c in e["competitions"][0]["competitors"]:
+                t = c["team"]; cid = t.get("conferenceId")
+                seen.setdefault((grp, cid), set()).add(t.get("abbreviation"))
+          for k in sorted(seen, key=lambda k: (k[0], int(k[1] or 0))): print(k, sorted(seen[k])[:8])
+          for u in ["https://site.api.espn.com/apis/site/v2/sports/football/college-football/groups?groups=80",
+                    "https://site.api.espn.com/apis/site/v2/sports/football/college-football/groups?groups=81",
+                    "https://site.api.espn.com/apis/site/v2/sports/hockey/mens-college-hockey/groups",
+                    "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/groups"]:
             try:
-              a, g = get(u); print("GROUPS", u.split("sports/")[1], "ACAO", a); print(json.dumps(short(g), indent=0)[:1800])
-            except Exception as ex: print("GROUPS ERR", u, ex)
-          a, d = get("https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=3")
-          c = d["events"][0]["competitions"][0]
-          print("NCAAM comp keys", list(c.keys())); print("team", short(c["competitors"][0]["team"]))
+              g = get(u); print("==", u.split("sports/")[1])
+              def walk(x, depth=0):
+                for gg in x.get("groups", x.get("children", [])) or []:
+                  print("  " * depth, gg.get("name"), "|", gg.get("abbreviation"), "| teams", len(gg.get("teams") or []))
+                  walk(gg, depth + 1)
+              walk(g)
+            except Exception as ex: print("ERR", u, ex)
+          # does the basketball groups list carry team ids that match conferenceId?
+          g = get("https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/groups")
+          c0 = g["groups"][0]["children"][0]; print("ncaam child keys", list(c0.keys()), c0.get("name"))
