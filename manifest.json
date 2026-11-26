@@ -1,6 +1,6 @@
 {
-  "name": "Agate",
-  "short_name": "Agate",
+  "name": "Score Card",
+  "short_name": "Score Card",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -8,12 +8,12 @@
   "theme_color": "#fffff8",
   "icons": [
     {
-      "src": "agate-192.png",
+      "src": "sc-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "agate-512.png",
+      "src": "sc-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Agate</title>
+<title>Score Card</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1213">
+<meta name="agate-version" content="2026.11.26-1217">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Agate">
+<meta name="apple-mobile-web-app-title" content="Score Card">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="manifest" href="manifest.json?v=agate">
-<link rel="apple-touch-icon" href="agate-180.png">
-<link rel="apple-touch-icon" sizes="180x180" href="agate-180.png">
-<link rel="icon" href="agate-favicon.png">
-<link rel="icon" href="agate-192.png" sizes="192x192">
+<link rel="manifest" href="manifest.json?v=sc">
+<link rel="apple-touch-icon" href="sc-180.png">
+<link rel="apple-touch-icon" sizes="180x180" href="sc-180.png">
+<link rel="icon" href="sc-favicon.png">
+<link rel="icon" href="sc-192.png" sizes="192x192">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -52,7 +52,6 @@ header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items:
 header button { -webkit-app-region: no-drag; }
 .app header { padding-left: 64px; }
 h1 { font-kerning: normal; font-feature-settings: "kern" 1, "liga" 1; }
-h1 .kA { letter-spacing: -0.02em; }
 h1 { grid-column: 1 / -1; margin: 0 0 0 -0.04em; padding-bottom: 6px; border-bottom: 1px solid var(--ink); font-weight: 500; font-size: clamp(56px, 15vw, 80px); line-height: 1.18; letter-spacing: -0.005em; }
 .status { font-style: italic; color: var(--gray); font-size: 15px; padding: 7px 0 0; min-width: 0; }
 .status.err { color: var(--home); }
@@ -255,7 +254,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
 <div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i></div>
 <div class="wrap">
   <header>
-    <h1><span class="kA">A</span>gate</h1>
+    <h1>Score Card</h1>
     <span class="status" id="status">Starting</span>
     <div class="tools">
       <button class="link" id="alerts" type="button" hidden>Alerts</button>
@@ -1632,7 +1631,7 @@ table.mkt .pct { font-weight: 500; flex: none; }
   // to the app (and every 10 minutes) ask for version.json, bypassing caches,
   // and reload when a newer version is published.
   var VERSION = (document.querySelector('meta[name="agate-version"]') || {}).content || "dev";
-  $("foot").textContent = "Agate, version " + VERSION + ". Scores from ESPN, markets from Polymarket.";
+  $("foot").textContent = "Score Card, version " + VERSION + ". Scores from ESPN, markets from Polymarket.";
   async function checkVersion() {
     if (VERSION === "dev") return;
     try {
