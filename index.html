@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1729">
+<meta name="agate-version" content="2026.11.27-1741">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -72,9 +72,8 @@ header .band::before { content: ""; position: absolute; z-index: -1; top: 0; bot
    wears the masthead colour, and the cream page sits on the content wrapper instead. */
 html.standalone, html.standalone body { background: var(--band); }
 /* once the masthead has scrolled away, the strip turns to paper to match what's under it */
-html.standalone.past-band, html.standalone.past-band body { background: var(--bg); }
-html.standalone .wrap { background: linear-gradient(var(--band) 0 env(safe-area-inset-top, 0px), var(--bg) 0); box-shadow: 0 0 0 100vmax var(--bg);
-  clip-path: inset(0 -100vmax); min-height: 100vh; }
+html.standalone.past-band body { background: var(--bg); }
+html.standalone .wrap { background: linear-gradient(var(--band) 0 env(safe-area-inset-top, 0px), var(--bg) 0); min-height: 100vh; }
 header .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .livec { font-size: 15px; font-style: italic; color: var(--band-gray); white-space: nowrap; }
 .livec b { font-style: normal; font-size: 30px; font-weight: 500; color: var(--band-ink); margin-right: 4px; font-variant-numeric: lining-nums; }
@@ -372,7 +371,8 @@ table.tsched tr.go:hover td { background: color-mix(in srgb, var(--rule) 25%, tr
 .tleaders .v { color: var(--gray); font-size: 14px; }
 /* ---- motion ---- */
 /* margin lines draw themselves in, left to right, as a day's page loads */
-td.sp canvas.reveal { animation: reveal 900ms cubic-bezier(.3, .6, .2, 1) both; }
+td.sp canvas.unseen, .nsp.unseen { clip-path: inset(0 100% 0 0); }
+td.sp canvas.reveal, .nsp.reveal { animation: reveal 900ms cubic-bezier(.3, .6, .2, 1) both; }
 @keyframes reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2px 0 0); } }
 /* a new score rolls in like an odometer: the old number up and out, the new up from below */
 .roll { display: inline-block; height: 1.15em; line-height: 1.15em; overflow: hidden; vertical-align: bottom; }
@@ -384,7 +384,7 @@ td.sp canvas.reveal { animation: reveal 900ms cubic-bezier(.3, .6, .2, 1) both; 
 :is(header, .pinbar) .pin .det .wp b { font-weight: 500; font-style: normal; color: var(--band-ink); }
 :is(header, .pinbar) .pin .det .wp.tick-up b { color: #9fd49a; }
 :is(header, .pinbar) .pin .det .wp.tick-down b { color: var(--band-red); }
-@media (prefers-reduced-motion: reduce) { td.sp canvas.reveal, .roll > span { animation: none; } .roll > span { transform: translateY(-50%); } }
+@media (prefers-reduced-motion: reduce) { td.sp canvas.reveal, .roll > span { animation: none; } td.sp canvas.unseen { clip-path: none; } .roll > span { transform: translateY(-50%); } }
 /* swiping between days */
 #games.swipe-out { transition: transform 160ms ease-in, opacity 160ms ease-in; }
 /* search */
@@ -912,6 +912,7 @@ header { view-transition-name: masthead; }
     }
     busy = false;
     render();
+    if (arriving) arrive();
     schedule();
     if (again) { again = false; poll(); }
   }
@@ -1015,10 +1016,24 @@ header { view-transition-name: masthead; }
   function ymd(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"); }
   function isToday() { return !day || day === ymd(new Date()); }
   function dayDate() { var s = day || ymd(new Date()); return new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)); }
-  function setDay(s) {
+  var arriving = null, arriveTimer = 0;
+  function arrive() {
+    clearTimeout(arriveTimer);
+    if (!arriving) return;
+    var g = $("games"), dir = arriving.dir; arriving = null;
+    g.style.opacity = "";
+    if (g.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+      g.animate([{ transform: "translateX(" + (dir * 36) + "px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 320, easing: "cubic-bezier(.2,.7,.2,1)" });
+  }
+  function setDay(s, dir) {
     if (s === ymd(new Date())) s = null;
     if (s === day) return;
-    day = s; data = {}; fetchedAt = {}; reveal.pending = true;
+    day = s; data = {}; fetchedAt = {}; seenAt.clear();
+    // The new day waits on a blank page until its games are in, then
+    // slides in (from the side it was swiped from) and its lines draw on.
+    arriving = { dir: dir || 0, at: Date.now() };
+    $("games").style.opacity = "0";
+    clearTimeout(arriveTimer); arriveTimer = setTimeout(arrive, 5000);
     render(); clearTimeout(timer); poll();
   }
   function renderDays() {
@@ -1027,9 +1042,9 @@ header { view-transition-name: masthead; }
     var label = isToday() ? "Today" : d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
     var iso = ymd(d).replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
     el.replaceChildren(
-      h("button", { class: "arrow", type: "button", "aria-label": "Previous day", text: "‹", onclick: function () { shift(-1); } }),
+      h("button", { class: "arrow", type: "button", "aria-label": "Previous day", text: "‹", onclick: function () { swipeDay(-1); } }),
       h("span", { class: "lbl", text: label }),
-      h("button", { class: "arrow", type: "button", "aria-label": "Next day", text: "›", onclick: function () { shift(1); } }),
+      h("button", { class: "arrow", type: "button", "aria-label": "Next day", text: "›", onclick: function () { swipeDay(1); } }),
       h("input", { type: "date", value: iso, "aria-label": "Pick a date", onchange: function (e) { if (e.target.value) setDay(e.target.value.replace(/-/g, "")); } }),
       isToday() ? "" : h("button", { class: "link", type: "button", text: "Back to today", onclick: function () { setDay(null); } }));
   }
@@ -1744,16 +1759,29 @@ header { view-transition-name: masthead; }
   }
 
   var pending = [];
-  // Draw-in: the first time a day's games appear, each line traces itself
-  // left to right, a row a moment after the one above. Delays are set from
-  // a fixed start, so re-renders mid-way carry on rather than restart.
-  var reveal = { pending: true, at: 0, i: 0 };
-  function revealCanvas(c) {
-    var now = Date.now();
-    if (reveal.pending) { reveal.pending = false; reveal.at = now; }
-    var start = reveal.at + Math.min(reveal.i++, 24) * 35;
-    if (now > start + 1000) return;
-    c.classList.add("reveal"); c.style.animationDelay = (start - now) + "ms";
+  // Draw-in: a game's line isn't there until it scrolls into view; then it
+  // traces itself left to right. Lines arriving together follow one another
+  // by a beat. Once seen it stays drawn, and re-renders mid-trace carry on.
+  var seenAt = new Map(), RV_MS = 900;
+  var io = "IntersectionObserver" in window ? new IntersectionObserver(function (ents) {
+    var now = Date.now(), n = 0;
+    ents.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      var c = en.target, k = c.dataset.k; io.unobserve(c);
+      if (!seenAt.has(k)) seenAt.set(k, now + Math.min(n++, 12) * 45);
+      showReveal(c, k);
+    });
+  }, { rootMargin: "0px 0px -6% 0px" }) : null;
+  function showReveal(c, k) {
+    var t0 = seenAt.get(k), now = Date.now();
+    c.classList.remove("unseen");
+    if (now < t0 + RV_MS) { c.classList.add("reveal"); c.style.animationDelay = (t0 - now) + "ms"; }
+  }
+  function revealCanvas(c, k) {
+    if (!io || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    c.dataset.k = k;
+    if (seenAt.has(k)) { showReveal(c, k); return; }
+    c.classList.add("unseen"); io.observe(c);
   }
   // The index where the margin last changed: the newest score's step.
   function lastStep(pts) { for (var i = pts.length - 1; i > 0; i--) if (pts[i].h - pts[i].a !== pts[i - 1].h - pts[i - 1].a) return i; return -1; }
@@ -1782,7 +1810,7 @@ header { view-transition-name: masthead; }
     var lastMark = hs.marks[hs.marks.length - 1], hot = lastMark && now - lastMark.at < FLASH_MS;
     var a = num(s.away.score), hh = num(s.home.score);
     var canvas = h("canvas", { "aria-label": "Margin over the game" });
-    revealCanvas(canvas);
+    revealCanvas(canvas, l.key + ":" + ev.id);
     var jStep = lastStep(hs.pts), before = jStep > 0 ? hs.pts[jStep - 1] : null, markAt = lastMark ? lastMark.at : 0;
     var play = ev.state === "in" ? [ev.down, ev.play].filter(Boolean).join(". ") : "";
     var row = h("tr", { class: "row" + (hot ? " hot" : "") + (isPinned(l, ev) ? " pinned" : ""), tabindex: "0",
@@ -1970,7 +1998,7 @@ header { view-transition-name: masthead; }
     renderDetail(false);
     var main = $("games");
     main.replaceChildren();
-    pending = []; reveal.i = 0;
+    pending = [];
     var list = [], any = false;
     LEAGUES.forEach(function (l, li) {
       if (l.race || (prefs.league !== "all" && prefs.league !== l.key)) return;
@@ -2736,12 +2764,9 @@ header { view-transition-name: masthead; }
   function swipeDay(n) {
     var g = $("games"), d = dayDate(); d.setDate(d.getDate() + n);
     var rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (rm || !g.animate) { setDay(ymd(d)); return; }
-    g.animate([{ transform: "translateX(0)", opacity: 1 }, { transform: "translateX(" + (-n * 48) + "px)", opacity: 0 }], { duration: 150, easing: "ease-in" })
-      .onfinish = function () {
-        setDay(ymd(d));
-        g.animate([{ transform: "translateX(" + (n * 48) + "px)", opacity: 0 }, { transform: "translateX(0)", opacity: 1 }], { duration: 220, easing: "cubic-bezier(.2,.7,.2,1)" });
-      };
+    if (rm || !g.animate) { setDay(ymd(d), n); return; }
+    g.animate([{ transform: "translateX(0)", opacity: 1 }, { transform: "translateX(" + (-n * 48) + "px)", opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" })
+      .onfinish = function (e) { setDay(ymd(d), n); try { e.target.cancel(); } catch (x) {} };
   }
   (function () {
     var sx = 0, sy = 0, t0 = 0, ok = false;
