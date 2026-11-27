@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1741">
+<meta name="agate-version" content="2026.11.27-1749">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -1020,7 +1020,7 @@ header { view-transition-name: masthead; }
   function arrive() {
     clearTimeout(arriveTimer);
     if (!arriving) return;
-    var g = $("games"), dir = arriving.dir; arriving = null;
+    var g = $("board"), dir = arriving.dir; arriving = null;
     g.style.opacity = "";
     if (g.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches)
       g.animate([{ transform: "translateX(" + (dir * 36) + "px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 320, easing: "cubic-bezier(.2,.7,.2,1)" });
@@ -1032,7 +1032,7 @@ header { view-transition-name: masthead; }
     // The new day waits on a blank page until its games are in, then
     // slides in (from the side it was swiped from) and its lines draw on.
     arriving = { dir: dir || 0, at: Date.now() };
-    $("games").style.opacity = "0";
+    $("board").style.opacity = "0";
     clearTimeout(arriveTimer); arriveTimer = setTimeout(arrive, 5000);
     render(); clearTimeout(timer); poll();
   }
@@ -1343,7 +1343,9 @@ header { view-transition-name: masthead; }
     var r = window.devicePixelRatio || 1, w = c.clientWidth, hh = c.clientHeight;
     if (!w || !hh) return null;
     if (c.width !== Math.round(w * r) || c.height !== Math.round(hh * r)) { c.width = Math.round(w * r); c.height = Math.round(hh * r); }
-    var g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, w, hh);
+    // willReadFrequently keeps the canvas off the GPU: iPhones were flashing
+    // GPU canvases blank whenever the strip under the clock changed colour.
+    var g = c.getContext("2d", { willReadFrequently: true }); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, w, hh);
     return { g: g, w: w, h: hh };
   }
   // The margin over a game (home minus away), home lead above the line.
@@ -1766,22 +1768,27 @@ header { view-transition-name: masthead; }
   var io = "IntersectionObserver" in window ? new IntersectionObserver(function (ents) {
     var now = Date.now(), n = 0;
     ents.forEach(function (en) {
-      if (!en.isIntersecting) return;
-      var c = en.target, k = c.dataset.k; io.unobserve(c);
-      if (!seenAt.has(k)) seenAt.set(k, now + Math.min(n++, 12) * 45);
-      showReveal(c, k);
+      var c = en.target, k = c.dataset.k;
+      if (!c.isConnected) { io.unobserve(c); return; }
+      if (en.isIntersecting) {
+        if (!seenAt.has(k)) seenAt.set(k, now + Math.min(n++, 12) * 45);
+        showReveal(c, k);
+      } else {
+        // gone off screen: next time it comes back, it draws on again
+        seenAt.delete(k); c.classList.remove("reveal"); c.classList.add("unseen");
+      }
     });
   }, { rootMargin: "0px 0px -6% 0px" }) : null;
   function showReveal(c, k) {
     var t0 = seenAt.get(k), now = Date.now();
     c.classList.remove("unseen");
-    if (now < t0 + RV_MS) { c.classList.add("reveal"); c.style.animationDelay = (t0 - now) + "ms"; }
+    if (now < t0 + RV_MS) { c.classList.add("reveal"); c.style.animationDelay = (t0 - now) + "ms"; } else c.classList.remove("reveal");
   }
   function revealCanvas(c, k) {
     if (!io || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     c.dataset.k = k;
-    if (seenAt.has(k)) { showReveal(c, k); return; }
-    c.classList.add("unseen"); io.observe(c);
+    if (seenAt.has(k)) showReveal(c, k); else c.classList.add("unseen");
+    io.observe(c);
   }
   // The index where the margin last changed: the newest score's step.
   function lastStep(pts) { for (var i = pts.length - 1; i > 0; i--) if (pts[i].h - pts[i].a !== pts[i - 1].h - pts[i - 1].a) return i; return -1; }
@@ -2762,7 +2769,7 @@ header { view-transition-name: masthead; }
   // for the one before. The page slides off the way the finger went and
   // the new day slides in behind it.
   function swipeDay(n) {
-    var g = $("games"), d = dayDate(); d.setDate(d.getDate() + n);
+    var g = $("board"), d = dayDate(); d.setDate(d.getDate() + n);
     var rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (rm || !g.animate) { setDay(ymd(d), n); return; }
     g.animate([{ transform: "translateX(0)", opacity: 1 }, { transform: "translateX(" + (-n * 48) + "px)", opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" })
