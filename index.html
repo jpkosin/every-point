@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2048">
+<meta name="agate-version" content="2026.11.26-2055">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -343,6 +343,27 @@ table.f1t td.r .sw, .f1 li .sw { height: 13px; }
 .slope figcaption { font-size: 13px; color: var(--gray); font-style: italic; margin-top: 2px; }
 a.plink { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
 a.plink:hover { text-decoration-color: var(--ink); }
+/* team pages */
+.tlink { color: inherit; text-decoration: none; border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+.tlink:hover { border-bottom-color: currentColor; }
+.thead { border-bottom: 1px solid var(--ink); padding-bottom: 10px; margin-top: 6px; }
+.stripf { margin: 4px 0 0; }
+.strip { display: block; width: 100%; height: 64px; }
+.stripf figcaption { font-size: 14px; color: var(--gray); font-style: italic; margin-top: 4px; }
+table.tstand tr.me td { font-weight: 600; }
+table.tstand td.pl .tlink { border-bottom: 0; }
+table.tsched, table.tstand { width: auto; min-width: min(100%, 420px); }
+table.tsched td { text-align: left; padding-right: 22px; }
+table.tsched td.opp { white-space: nowrap; }
+table.tsched td.gres b.w { color: var(--ink); }
+table.tsched td.up { color: var(--gray); font-style: italic; }
+table.tsched td.live { color: var(--home); }
+table.tsched tr.go { cursor: pointer; }
+table.tsched tr.go:hover td { background: color-mix(in srgb, var(--rule) 25%, transparent); }
+.tleaders { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 24px; font-size: 15px; }
+.tleaders .tl { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 0 10px; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); }
+.tleaders .k { font-style: italic; color: var(--gray); grid-row: span 2; }
+.tleaders .v { color: var(--gray); font-size: 14px; }
 .phead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
 .phead .jn { font-size: clamp(64px, 16vw, 112px); line-height: 0.85; font-weight: 500; letter-spacing: -0.03em; }
 .phead .pn { margin: 0; font-style: normal; font-size: clamp(28px, 6vw, 40px); line-height: 1.05; }
@@ -832,8 +853,8 @@ header { view-transition-name: masthead; }
       }
       lastError = "";
       mode = "live";
-      if (view && !view.player && !box.data && !box.loading) loadBox();
-      if (view && !view.player && mk.key !== view.l.key + ":" + view.id) loadMarkets();
+      if (view && !view.player && !view.team && !box.data && !box.loading) loadBox();
+      if (view && !view.player && !view.team && mk.key !== view.l.key + ":" + view.id) loadMarkets();
     } catch (e) {
       if (String(e && e.message) === "STALE") { busy = false; poll(); return; }
       mode = "live";
@@ -1045,7 +1066,7 @@ header { view-transition-name: masthead; }
   }
   var mk = { key: "", poly: null, at: 0 }, mkTimer = null;
   async function loadMarkets() {
-    if (!view || view.player) return;
+    if (!view || view.player || view.team) return;
     var l = view.l, key = l.key + ":" + view.id, ev = findEvent(l, view.id);
     clearTimeout(mkTimer);
     if (!ev) return;
@@ -1566,7 +1587,7 @@ header { view-transition-name: masthead; }
   function isPinned(l, ev) { return !!(prefs.pin && prefs.pin.l === l.key && String(prefs.pin.id) === String(ev.id)); }
   function snapOf(l, ev) {
     var s = sides(ev), tc = teamColors(ev);
-    return { away: s.away.abbr, home: s.home.abbr, as: s.away.score, hs: s.home.score, ac: s.away.color, hc: s.home.color,
+    return { away: s.away.abbr, home: s.home.abbr, aid: s.away.id, hid: s.home.id, as: s.away.score, hs: s.home.score, ac: s.away.color, hc: s.home.color,
       state: ev.state, detail: ev.state === "pre" ? whenText(ev.date) : ev.detail || "", lg: l.label,
       wp: (function () { var w = winChance(l, ev); return w ? w.abbr + " " + w.pct + "%" : ""; })() };
   }
@@ -1585,7 +1606,7 @@ header { view-transition-name: masthead; }
     var el = $("pin");
     if (!prefs.pin) { el.hidden = true; el.replaceChildren(); if (typeof checkStick === "function") checkStick(); return; }
     var l = BY_KEY[prefs.pin.l], ev = l && findEvent(l, prefs.pin.id);
-    if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail || sn.wp !== old.wp) { prefs.pin.snap = sn; savePrefs(); } }
+    if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail || sn.wp !== old.wp || sn.aid !== old.aid) { prefs.pin.snap = sn; savePrefs(); } }
     var p = prefs.pin.snap;
     if (!p) { el.hidden = true; return; }
     var band = rgbOf(getComputedStyle(document.getElementById("pinbar")).backgroundColor) || [29, 28, 26];
@@ -1597,7 +1618,7 @@ header { view-transition-name: masthead; }
       h("span", { class: "side" }, [h("span", { class: "sw", style: "background:" + col(p.ac) }), h("span", { class: "ab", text: p.away || "?" }),
         h("span", { class: "n" + (a > hh ? " up" : ""), text: p.state === "pre" ? "" : String(p.as == null ? "" : p.as) })]),
       h("span", { class: "side" }, [h("span", { class: "n" + (hh > a ? " up" : ""), text: p.state === "pre" ? "" : String(p.hs == null ? "" : p.hs) }),
-        h("span", { class: "ab", text: p.home || "?" }), h("span", { class: "sw", style: "background:" + col(p.hc) })]),
+        h("span", { class: "ab", "data-team": p.hid || null, text: p.home || "?" }), h("span", { class: "sw", style: "background:" + col(p.hc) })]),
       h("span", { class: "det" }, [(p.state === "pre" ? p.detail : p.detail || (p.state === "post" ? "Final" : "")) + (ev ? "" : p.lg ? " · " + p.lg : ""),
         p.wp && p.state !== "post" ? h("span", { class: "wp", text: p.wp + " to win" }) : null]));
     el.setAttribute("aria-label", "Pinned: " + (p.away || "") + " " + (p.as || "") + ", " + (p.home || "") + " " + (p.hs || "") + ". Tap to open, hold to unpin.");
@@ -1880,11 +1901,14 @@ header { view-transition-name: masthead; }
   function flushDraws() { cancelAnimationFrame(drawFrame); drawFrame = 0; var q = drawQueue; drawQueue = []; q.forEach(function (f) { f(); }); }
   function routeNow() {
     var m = /^#game-([a-z0-9]+)-([A-Za-z0-9]+)$/.exec(location.hash || ""), pm = /^#player-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
-    var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : pm && BY_KEY[pm[1]] ? { l: BY_KEY[pm[1]], id: pm[2], player: true } : null, was = view;
-    vt = next && !next.player ? { l: next.l.key, id: String(next.id) } : !next && was && !was.player ? { l: was.l.key, id: String(was.id) } : null;
+    var tmm = /^#team-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
+    var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : pm && BY_KEY[pm[1]] ? { l: BY_KEY[pm[1]], id: pm[2], player: true }
+      : tmm && BY_KEY[tmm[1]] ? { l: BY_KEY[tmm[1]], id: tmm[2], team: true } : null, was = view;
+    vt = next && !next.player && !next.team ? { l: next.l.key, id: String(next.id) } : !next && was && !was.player && !was.team ? { l: was.l.key, id: String(was.id) } : null;
     view = next;
     clearTimeout(boxTimer);
     if (view && view.player) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadPlayer(); render(); return; }
+    if (view && view.team) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadTeam(); render(); return; }
     if (view) {
       var key = view.l.key + ":" + view.id;
       if (box.key !== key) box = { key: key, data: null, error: "", at: 0, loading: false };
@@ -1898,7 +1922,7 @@ header { view-transition-name: masthead; }
   }
   function findEvent(l, id) { return ((data[l.key] || {}).events || []).filter(function (e) { return String(e.id) === String(id); })[0] || null; }
   async function loadBox() {
-    if (!view || view.player) return;
+    if (!view || view.player || view.team) return;
     var l = view.l, id = view.id, key = l.key + ":" + id, ev = findEvent(l, id);
     clearTimeout(boxTimer);
     if (l.race) { renderDetail(true); return; }
@@ -2107,6 +2131,138 @@ header { view-transition-name: masthead; }
     d.replaceChildren.apply(d, kids);
   }
 
+  // ---- Team pages ----------------------------------------------------------
+  function teamLink(l, id, child) {
+    if (!id || l.race) return child;
+    return h("a", { class: "tlink", href: "#team-" + l.key + "-" + id, onclick: function (e) { e.stopPropagation(); backTo = location.hash; } }, [child]);
+  }
+  var tm = { key: "" };
+  async function loadTeam() {
+    var l = view.l, id = view.id, key = l.key + ":" + id;
+    if (tm.key === key && (tm.loading || tm.at > Date.now() - 300e3)) return;
+    tm = { key: key, loading: true };
+    var path = l.paths[0].split("?")[0], sb = BASE + path + "/teams/" + id + "/schedule";
+    var got = await Promise.allSettled([getJSON(sb), l.sport === "soccer" ? getJSON(sb + "?fixture=true") : Promise.resolve(null)]);
+    if (tm.key !== key) return;
+    var a = got[0].status === "fulfilled" ? got[0].value : null, b = got[1].status === "fulfilled" ? got[1].value : null;
+    if (!a || !a.team) { tm.loading = false; tm.err = "Couldn't load this team."; renderDetail(true); return; }
+    tm.team = a.team;
+    var seen = {}, games = [];
+    (a.events || []).concat((b && b.events) || []).forEach(function (e) {
+      if (seen[e.id]) return; seen[e.id] = 1;
+      var c = (e.competitions || [])[0] || {}, cs = c.competitors || [];
+      var us = cs.filter(function (x) { return String(x.id || (x.team || {}).id) === String(id); })[0], them = cs.filter(function (x) { return x !== us; })[0];
+      if (!us || !them) return;
+      var st = (c.status || {}).type || {}, sv = function (x) { var v = x.score; return v == null ? null : typeof v === "object" ? num(v.value != null ? v.value : v.displayValue) : num(v); };
+      var bc = (c.broadcasts || []).map(function (x) { return (x.media || {}).shortName || ""; }).filter(Boolean);
+      games.push({ id: e.id, date: e.date || c.date, state: st.state || "pre", detail: st.shortDetail || "", home: us.homeAway === "home",
+        opp: { id: (them.team || {}).id, abbr: (them.team || {}).abbreviation, name: (them.team || {}).displayName, color: (them.team || {}).color },
+        us: sv(us), them: sv(them), win: us.winner === true ? true : them.winner === true ? false : null, media: bc.join(", "), leaders: us.leaders || [] });
+    });
+    games.sort(function (x, y) { return Date.parse(x.date) - Date.parse(y.date); });
+    tm.games = games;
+    // the team's division or conference (soccer: the whole league)
+    var gid = (a.team.groups || {}).id, su = "https://site.api.espn.com/apis/v2/sports/" + path + "/standings" + (gid && l.sport !== "soccer" ? "?group=" + gid : "");
+    try {
+      var sd = await getJSON(su), node = sd;
+      while (node && !(node.standings && node.standings.entries) && node.children && node.children.length) {
+        node = node.children.filter(function (c) { return JSON.stringify(c).indexOf('"id":"' + id + '"') >= 0; })[0] || node.children[0];
+      }
+      tm.stand = node && node.standings ? { name: node.name || "", entries: node.standings.entries || [] } : null;
+    } catch (e) { tm.stand = null; }
+    if (tm.key !== key) return;
+    tm.loading = false; tm.at = Date.now();
+    renderDetail(true);
+  }
+  // The season in one line: each finished game a bar from the rule, up for a
+  // win and down for a loss, as long as the margin; games to come are ticks.
+  function seasonStrip(games, col) {
+    var c = h("canvas", { class: "strip", "aria-label": "Season, game by game: wins above the line, losses below, by margin" });
+    var done = games.filter(function (g) { return g.state === "post" && g.us != null && g.them != null; });
+    var hi = Math.max.apply(null, [1].concat(done.map(function (g) { return Math.abs(g.us - g.them); })));
+    requestAnimationFrame(function () {
+      var sc = sizeCanvas(c); if (!sc) return;
+      var g = sc.g, W = sc.w, H = sc.h, p = pal(), n = games.length || 1, step = W / n, bw = Math.max(2, Math.min(14, step * 0.62)), mid = Math.round(H / 2) + 0.5;
+      g.strokeStyle = p.rule; g.lineWidth = 1; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+      games.forEach(function (gm, i) {
+        var x = step * i + (step - bw) / 2;
+        if (gm.state === "post" && gm.us != null && gm.them != null) {
+          var m = gm.us - gm.them, hgt = Math.max(1.5, Math.abs(m) / hi * (H / 2 - 3));
+          g.fillStyle = m > 0 ? col : m < 0 ? alpha(p.ink, 0.45) : p.gray;
+          if (m >= 0) g.fillRect(x, mid - hgt, bw, hgt); else g.fillRect(x, mid, bw, hgt);
+        } else if (gm.state === "in") {
+          g.fillStyle = p.home; g.beginPath(); g.arc(x + bw / 2, mid, 3, 0, Math.PI * 2); g.fill();
+        } else {
+          g.strokeStyle = p.gray; g.beginPath(); g.moveTo(Math.round(x + bw / 2) + 0.5, mid - 3); g.lineTo(Math.round(x + bw / 2) + 0.5, mid + 3); g.stroke();
+        }
+      });
+    });
+    var w = done.filter(function (g) { return g.us > g.them; }).length, lo = done.filter(function (g) { return g.us < g.them; }).length, d = done.length - w - lo;
+    var diff = done.reduce(function (a, g) { return a + g.us - g.them; }, 0);
+    return h("figure", { class: "stripf" }, [c, h("figcaption", { text: "The season, one bar a game: wins above the line in the team's colour, losses below in grey, each as long as its margin (longest " + hi + "). Ticks are games to come. " +
+      w + " won, " + lo + " lost" + (d ? ", " + d + " drawn" : "") + "; " + (diff > 0 ? "+" : "") + diff + " overall." })]);
+  }
+  function renderTeam(d) {
+    var l = view.l, back = h("button", { class: "back", type: "button", text: "← Back", onclick: function () { location.hash = backTo && backTo !== location.hash ? backTo : ""; } });
+    if (tm.key !== l.key + ":" + view.id || (tm.loading && !tm.team)) { d.replaceChildren(back, h("p", { class: "dnote", text: "Loading team…" })); return; }
+    if (!tm.team) { d.replaceChildren(back, h("p", { class: "dnote err", text: tm.err || "Couldn't load this team." })); return; }
+    var t = tm.team, bg = rgbOf(pal().bg) || [255, 255, 248], rgb = rgbOf(t.color ? "#" + String(t.color).replace("#", "") : ""), col = rgb ? css(readable(rgb, bg)) : pal().ink;
+    var meta = [t.recordSummary ? dash(t.recordSummary) : null, t.standingSummary].filter(Boolean);
+    var kids = [back, h("div", { class: "thead" }, [h("h2", { class: "pn", style: "color:" + col, text: t.displayName || "" }),
+      h("p", { class: "pmeta", text: [l.title || l.label].concat(meta).join(" · ") })])];
+    var games = tm.games || [];
+    if (games.length) kids.push(h("section", { class: "tbox" }, [h("h3", { text: "This season" }), seasonStrip(games, col)]));
+    // standings
+    var st = tm.stand;
+    if (st && st.entries.length) {
+      var stat = function (en, k) { var x = (en.stats || []).filter(function (q) { return q.name === k || q.type === k; })[0]; return x ? x : null; };
+      var soccer = l.sport === "soccer";
+      var rows = st.entries.map(function (en) {
+        var pts = stat(en, "points"), pct = stat(en, "winPercent"), ov = stat(en, "overall") || stat(en, "total"), w = stat(en, "wins"), lo = stat(en, "losses"), ti = stat(en, "ties") || stat(en, "otLosses");
+        var dif = stat(en, "pointDifferential") || stat(en, "differential");
+        var rec = ov && ov.displayValue ? ov.displayValue : [w, lo, ti].filter(Boolean).map(function (x) { return x.displayValue; }).join("-");
+        return { en: en, sort: soccer ? (pts ? pts.value : 0) : (pct ? pct.value : 0), rec: dash(rec), key: soccer ? (pts ? pts.displayValue : "") : (pct ? pct.displayValue : ""), dif: dif ? dif.displayValue : "" };
+      }).sort(function (a, b) { return b.sort - a.sort; });
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: st.name || "Standings" }), h("div", { class: "scroll" }, [h("table", { class: "stats tstand" }, [
+        h("thead", null, [h("tr", null, [h("th", { class: "pl", scope: "col", text: "" }), h("th", { scope: "col", text: "Record" }), h("th", { scope: "col", text: soccer ? "Pts" : "Pct" }), h("th", { scope: "col", text: "Diff" })])]),
+        h("tbody", null, rows.map(function (r) {
+          var me = String((r.en.team || {}).id) === String(view.id);
+          var nm = (r.en.team || {}).displayName || (r.en.team || {}).abbreviation || "";
+          return h("tr", { class: me ? "me" : null }, [h("td", { class: "pl" }, [me ? nm : teamLink(l, (r.en.team || {}).id, document.createTextNode(nm))]),
+            h("td", { text: r.rec }), h("td", { class: me ? "lead" : null, text: r.key }), h("td", { text: r.dif })]);
+        }))])])]));
+    }
+    // leaders from the last game played
+    var last = games.filter(function (g) { return g.state === "post"; }).pop();
+    if (last && last.leaders.length) {
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: "Leaders, last game" }), h("div", { class: "tleaders" }, last.leaders.map(function (cat) {
+        var top = (cat.leaders || [])[0]; if (!top || !top.athlete) return null;
+        return h("div", { class: "tl" }, [h("span", { class: "k", text: cat.displayName || cat.name || "" }),
+          h("a", { class: "plink", href: "#player-" + l.key + "-" + top.athlete.id, onclick: function () { backTo = location.hash; }, text: top.athlete.displayName || top.athlete.shortName || "" }),
+          h("span", { class: "v", text: top.displayValue || "" })]);
+      }).filter(Boolean))]));
+    }
+    // schedule: results, then what's next
+    if (games.length) {
+      var fmtD = function (x) { var dt = new Date(x); return isNaN(dt) ? "" : dt.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); };
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: "Schedule" }), h("div", { class: "scroll" }, [h("table", { class: "stats tsched" }, [
+        h("tbody", null, games.map(function (g) {
+          var opp = (g.home ? "v " : "@ ") + (g.opp.abbr || g.opp.name || "?");
+          var res;
+          if (g.state === "post" && g.us != null) {
+            var wl = g.us > g.them ? "W" : g.us < g.them ? "L" : "D";
+            res = h("td", { class: "r gres" }, [h("b", { class: wl === "W" ? "w" : null, text: wl }), " " + g.us + "–" + g.them + (/ot|so|pen|aet/i.test(g.detail) ? " " + g.detail.replace(/^final\/?/i, "") : "")]);
+          } else if (g.state === "in") res = h("td", { class: "r live", text: "Live " + (g.us != null ? g.us + "–" + g.them : "") });
+          else res = h("td", { class: "r up", text: whenText(g.date).replace(/^[A-Za-z]{3}, [A-Za-z]{3} \d+, /, "") + (g.media ? " · " + g.media : "") });
+          var tr = h("tr", { class: g.state !== "pre" ? "go" : null, tabindex: g.state !== "pre" ? "0" : null,
+            onclick: g.state !== "pre" ? function () { backTo = location.hash; location.hash = "game-" + l.key + "-" + g.id; } : null }, [
+            h("td", { class: "pl", text: fmtD(g.date) }), h("td", { class: "r opp" }, [h("span", { class: "sw", style: "background:" + (g.opp.color ? "#" + String(g.opp.color).replace("#", "") : "transparent") }), opp]), res]);
+          return tr;
+        }))])])]));
+    }
+    d.replaceChildren.apply(d, kids);
+  }
+
   function recLine(t) {
     var parts = [dash(t.record), dash(t.recSplit)].filter(Boolean);
     return parts.length ? h("span", { class: "rec", text: parts.join(" · ") }) : "";
@@ -2142,6 +2298,7 @@ header { view-transition-name: masthead; }
     if (!view) { d.hidden = true; tablesKey = ""; return; }
     d.hidden = false;
     if (view.player) { renderPlayer(d); return; }
+    if (view.team) { renderTeam(d); return; }
     var l = view.l, ev = findEvent(l, view.id);
     if (l.race) { renderRace(d, l, ev); return; }
     var bx = box.data;
@@ -2158,12 +2315,12 @@ header { view-transition-name: masthead; }
     var dh = $("dhead");
     dh.className = "dhead";
     dh.replaceChildren(
-      h("div", { class: "dteam away" }, [h("span", { class: "nm", style: tc ? "color:" + tc.away : null, text: away.full || away.name || "" }), recLine(away), h("span", { class: "big", text: state === "pre" ? "–" : String(away.score == null ? "" : away.score) })]),
+      h("div", { class: "dteam away" }, [teamLink(l, away.id, h("span", { class: "nm", style: tc ? "color:" + tc.away : null, text: away.full || away.name || "" })), recLine(away), h("span", { class: "big", text: state === "pre" ? "–" : String(away.score == null ? "" : away.score) })]),
       h("div", { class: "dmid" }, [h("span", { class: "lg", text: (ev && ev.example ? "Example. " : "") + l.label }),
         state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" }),
         (function () { var w = ev && winChance(l, ev); return w ? h("span", { class: "wp", title: "Polymarket's chance of winning" },
           [h("b", { style: tc ? "color:" + tc[w.side] : null, text: w.abbr + " " + w.pct + "%" }), " to win"]) : null; })()]),
-      h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), recLine(home), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
+      h("div", { class: "dteam home" }, [teamLink(l, home.id, h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" })), recLine(home), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
     vtName(dh.querySelector(".dteam.away .nm"), "vt-away"); vtName(dh.querySelector(".dteam.home .nm"), "vt-home");
     vtName(dh.querySelector(".dteam.away .big"), "vt-as"); vtName(dh.querySelector(".dteam.home .big"), "vt-hs");
     $("dwhere").replaceChildren(ev ? whereLine(ev.media, ev, ev.venue) : "");
@@ -2201,7 +2358,7 @@ header { view-transition-name: masthead; }
     var scale = boxScale(ordered), p = pal();
     $("dtables").replaceChildren.apply($("dtables"), ordered.filter(function (t) { return t.groups && t.groups.length; }).map(function (t) {
       var which = t.home ? "home" : "away", base = tc ? tc[which] : p[which], color = alpha(base, 0.14);
-      return h("section", { class: "tbox " + which }, [h("h2", { style: "color:" + base, text: t.name || t.abbr || "" })].concat(t.groups.map(function (g) {
+      return h("section", { class: "tbox " + which }, [h("h2", { style: "color:" + base }, [teamLink(l, t.id, document.createTextNode(t.name || t.abbr || ""))])].concat(t.groups.map(function (g) {
         var title = ({ Kickreturns: "Kick returns", Puntreturns: "Punt returns", Defenses: "Defense", Defensive: "Defense" })[g.name] || g.name;
         return h("div", null, [h("h3", { text: title }), statTable(g, color, scale)]);
       })));
@@ -2209,7 +2366,8 @@ header { view-transition-name: masthead; }
   }
 
   // ---- App setup ---------------------------------------------------------
-  pressable($("pin"), function () { var p = prefs.pin, l = p && BY_KEY[p.l]; if (l) openGame(l, { id: p.id }); },
+  pressable($("pin"), function (e) { var p = prefs.pin, l = p && BY_KEY[p.l]; if (!l) return; var ab = e && e.target && e.target.closest && e.target.closest(".ab[data-team]");
+    if (ab) { backTo = location.hash; location.hash = "team-" + l.key + "-" + ab.getAttribute("data-team"); } else openGame(l, { id: p.id }); },
     function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
   $("sound").addEventListener("click", function () {
     prefs.sound = !prefs.sound; savePrefs();
@@ -2296,7 +2454,8 @@ header { view-transition-name: masthead; }
     checkStick();
   });
   addEventListener("hashchange", function () { setTimeout(checkStick, 50); });
-  pressable($("pinc"), function () { var p = prefs.pin, l = p && BY_KEY[p.l]; if (l) openGame(l, { id: p.id }); },
+  pressable($("pinc"), function (e) { var p = prefs.pin, l = p && BY_KEY[p.l]; if (!l) return; var ab = e && e.target && e.target.closest && e.target.closest(".ab[data-team]");
+    if (ab) { backTo = location.hash; location.hash = "team-" + l.key + "-" + ab.getAttribute("data-team"); } else openGame(l, { id: p.id }); },
     function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
   // Theme: auto follows the phone; light and dark override it on this device.
   function applyTheme() {
