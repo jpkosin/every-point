@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2004">
+<meta name="agate-version" content="2026.11.26-2007">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -87,17 +87,19 @@ header .band, header .row { min-width: 0; }
 :is(header, .pinbar) .pin .det { margin-left: auto; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
 :is(header, .pinbar) .pin.live .det { color: var(--band-ink); font-style: normal; }
 /* The pinned game, stuck to the top once its place in the masthead scrolls away.
-   The ticker beneath it flies up to sit beside the score, so it never leaves the screen. */
+   As it sticks, the game's margin line (Polymarket band behind) draws out to the right of the score. */
 .pinbar { position: fixed; left: 0; right: 0; top: 0; z-index: 40; background: var(--band); color: var(--band-ink);
   padding-top: env(safe-area-inset-top, 0px); visibility: hidden; pointer-events: none; }
 @media (pointer: coarse) { .pinbar { padding-top: calc(env(safe-area-inset-top, 0px) + 28px); } }
 .stuck .pinbar { visibility: visible; pointer-events: auto; }
 .pinbar .pin { margin: 0; padding-bottom: 7px; border-top-color: transparent; }
 .pinbar .in { position: relative; }
-/* the ticker, moved up beside the score while the bar is stuck */
+/* the margin line's palette, turned for the dark bar */
+.pinbar { --bg: var(--band); --ink: var(--band-ink); --gray: var(--band-gray); --rule: rgba(255, 255, 248, 0.28);
+  --home: var(--band-red); --away: var(--band-blue); }
+/* the pinned game's margin line, drawn beside the score while the bar is stuck */
 .pinbar .mini { position: absolute; display: block; pointer-events: none; transform-origin: 0 0; }
-.rug-away header .rugbox canvas { visibility: hidden; }
-.mini.fly { position: fixed; z-index: 41; visibility: visible; transform-origin: 0 0; pointer-events: none; }
+
 .status.note { color: var(--ink); }
 tr.row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 tr.row.pinned td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 6px; }
@@ -364,7 +366,7 @@ header { view-transition-name: masthead; }
       <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
-<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="rugm" aria-hidden="true"></canvas></div></div></div>
+<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div></div></div></div>
   <div class="banner" id="banner" hidden></div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
@@ -1258,11 +1260,7 @@ header { view-transition-name: masthead; }
   }
 
   // The rug: one tick per score in the last 30 minutes, tall for big scores.
-  function drawRug() {
-    drawRugInto(document.getElementById("rug"), true);
-    var m = document.getElementById("rugm");
-    if (m && (stuck || m.classList.contains("fly"))) drawRugInto(m, false);
-  }
+  function drawRug() { drawRugInto(document.getElementById("rug"), true); }
   function drawRugInto(c, withCap) {
     var s = sizeCanvas(c);
     if (!s) return;
@@ -2039,57 +2037,53 @@ header { view-transition-name: masthead; }
   // On scroll: stick the pinned game to the top once its place in the
   // masthead passes under it; and (home-screen app) turn the strip under
   // the clock from masthead to paper once the masthead has gone.
-  var stuck = false, stickQueued = false;
+  var stuck = false, stickQueued = false, stickQueuedByScroll = false;
   function stickTop() { return parseFloat(getComputedStyle($("pinbar")).paddingTop) || 0; }
-  var FLY_MS = 420, flying = null;
-  function relRect(r, box) { return { x: r.left - box.left, y: r.top - box.top, w: r.width, h: r.height }; }
-  // Where the ticker sits in the bar: the gap between the score and the clock.
+  // Where the margin line sits in the bar: the gap between the score and the clock.
   function miniSlot() {
     var pc = $("pinc"), sides = pc.querySelectorAll(".side"), det = pc.querySelector(".det");
     if (sides.length < 2) return null;
     var a = sides[1].getBoundingClientRect(), d = det ? det.getBoundingClientRect() : null, pr = pc.getBoundingClientRect();
-    var left = a.right + 18, right = (d && d.width ? d.left : pr.right) - 18;
-    if (right - left < 36) return null;
-    var hgt = 22, mid = a.top + a.height * 0.62;
-    return { left: left, top: mid - hgt / 2 - 3, width: right - left, height: hgt };
+    var left = a.right + 16, right = (d && d.width ? d.left : pr.right) - 16;
+    if (right - left < 40) return null;
+    var hgt = 26, mid = a.top + a.height * 0.55;
+    return { left: left, top: mid - hgt / 2, width: right - left, height: hgt };
   }
-  function flyTo(m, from, to, done) {
-    var rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (flying) { flying.cancel(); flying = null; }
-    if (rm || !m.animate || !from) { done && done(); return; }
-    flying = m.animate([
-      { transform: "translate(" + (from.left - to.left) + "px," + (from.top - to.top) + "px) scale(" + from.width / to.width + "," + from.height / to.height + ")" },
-      { transform: "none" }], { duration: FLY_MS, easing: "cubic-bezier(.3,.7,.2,1)" });
-    flying.onfinish = function () { flying = null; done && done(); };
+  // Draw the pinned game's margin, in its league's scale; false if there's nothing to draw.
+  function drawPinMargin() {
+    var m = $("pinm"), p = prefs.pin, l = p && BY_KEY[p.l], ev = l && findEvent(l, p.id);
+    if (!ev || ev.state === "pre" || m.hidden) return false;
+    var keep = P, bp = {};
+    document.querySelectorAll("#palb i").forEach(function (i) { bp[i.dataset.k] = getComputedStyle(i).color; });
+    P = bp;
+    try { drawMargin(m, l, ev, ensureHist(l, ev), leagueScale(l), false); } finally { P = keep; }
+    return true;
+  }
+  function placeMini() {
+    var m = $("pinm"), inn = $("pinbar").firstElementChild, slot = miniSlot();
+    if (!slot) { m.hidden = true; return false; }
+    m.hidden = false;
+    var box = inn.getBoundingClientRect();
+    m.style.left = (slot.left - box.left) + "px"; m.style.top = (slot.top - box.top) + "px";
+    m.style.width = slot.width + "px"; m.style.height = slot.height + "px";
+    if (!drawPinMargin()) { m.hidden = true; return false; }
+    return true;
   }
   function stick(on) {
-    var root = document.documentElement, bar = $("pinbar"), m = $("rugm"), rugEl = $("rug");
+    var root = document.documentElement, bar = $("pinbar"), m = $("pinm");
     stuck = on;
     if (on) {
       var r = $("pin").getBoundingClientRect(), inn = bar.firstElementChild;
       inn.style.marginLeft = r.left + "px"; inn.style.width = r.width + "px";
       root.classList.add("stuck");
-      m.classList.remove("fly"); m.style.cssText = "";
-      var slot = miniSlot();
       root.style.setProperty("--pinbar-h", ($("pinc").offsetHeight + stickTop()) + "px");
-      if (!slot) { m.hidden = true; root.classList.remove("rug-away"); return; }
-      m.hidden = false;
-      var box = inn.getBoundingClientRect();
-      m.style.left = (slot.left - box.left) + "px"; m.style.top = (slot.top - box.top) + "px";
-      m.style.width = slot.width + "px"; m.style.height = slot.height + "px";
-      drawRugInto(m, false);
-      root.classList.add("rug-away");
-      flyTo(m, rugEl.getBoundingClientRect(), slot);
+      if (placeMini() && m.animate && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+        // the line draws out from the score, left to right
+        m.animate([{ clipPath: "inset(0 100% 0 0)", opacity: 0.4 }, { clipPath: "inset(0 0 0 0)", opacity: 1 }],
+          { duration: 520, easing: "cubic-bezier(.3,.7,.2,1)" });
     } else {
-      root.style.removeProperty("--pinbar-h");
-      // Fly the ticker back down into the masthead as the bar lets go.
-      var from = !m.hidden && m.getBoundingClientRect(), to = rugEl.getBoundingClientRect();
       root.classList.remove("stuck");
-      if (!from || !from.width || to.bottom < 0) { root.classList.remove("rug-away"); m.style.cssText = ""; return; }
-      m.classList.add("fly");
-      m.style.left = to.left + "px"; m.style.top = to.top + "px"; m.style.width = to.width + "px"; m.style.height = to.height + "px";
-      drawRugInto(m, false);
-      flyTo(m, from, to, function () { if (!stuck) { root.classList.remove("rug-away"); m.classList.remove("fly"); m.style.cssText = ""; } });
+      root.style.removeProperty("--pinbar-h");
     }
   }
   function checkStick() {
@@ -2097,7 +2091,8 @@ header { view-transition-name: masthead; }
     var pin = $("pin"), want = false;
     if (pin && !pin.hidden && pin.offsetParent) want = pin.getBoundingClientRect().top < stickTop() - 0.5;
     if (want !== stuck) stick(want);
-    else if (stuck) document.documentElement.style.setProperty("--pinbar-h", ($("pinc").offsetHeight + stickTop()) + "px");
+    else if (stuck && !stickQueuedByScroll) { document.documentElement.style.setProperty("--pinbar-h", ($("pinc").offsetHeight + stickTop()) + "px"); placeMini(); }
+    stickQueuedByScroll = false;
     if (STANDALONE) {
       var band = document.querySelector("header .band");
       var past = !!band && band.getBoundingClientRect().bottom < 4 && !stuck;
@@ -2107,7 +2102,7 @@ header { view-transition-name: masthead; }
       }
     }
   }
-  addEventListener("scroll", function () { if (!stickQueued) { stickQueued = true; requestAnimationFrame(checkStick); } }, { passive: true });
+  addEventListener("scroll", function () { if (!stickQueued) { stickQueued = true; stickQueuedByScroll = true; requestAnimationFrame(checkStick); } }, { passive: true });
   addEventListener("resize", function () { if (stuck) stick(false); checkStick(); });
   addEventListener("hashchange", function () { setTimeout(checkStick, 50); });
   pressable($("pinc"), function () { var p = prefs.pin, l = p && BY_KEY[p.l]; if (l) openGame(l, { id: p.id }); },
