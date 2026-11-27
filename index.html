@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2032">
+<meta name="agate-version" content="2026.11.26-2043">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -88,7 +88,7 @@ header .band, header .row { min-width: 0; }
 :is(header, .pinbar) .pin .ab { font-size: 18px; font-weight: 500; letter-spacing: 0.03em; }
 :is(header, .pinbar) .pin .n { font-size: 30px; line-height: 1; color: var(--band-gray); }
 :is(header, .pinbar) .pin .n.up { color: var(--band-ink); font-weight: 600; }
-:is(header, .pinbar) .pin .det { margin-left: auto; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
+:is(header, .pinbar) .pin .det { margin-left: auto; text-align: right; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
 :is(header, .pinbar) .pin.live .det { color: var(--band-ink); font-style: normal; }
 /* The pinned game, stuck to the top once its place in the masthead scrolls away.
    As it sticks, the game's margin line (Polymarket band behind) draws out to the right of the score. */
@@ -157,6 +157,15 @@ h2 { margin: 0 0 2px; font-weight: 400; font-style: italic; font-size: 26px; }
 h2 .c { font-style: normal; color: var(--gray); font-size: 18px; margin-left: 6px; }
 .note { margin: 0 0 10px; color: var(--gray); font-size: 15px; font-style: italic; }
 .group + .group { margin-top: 30px; }
+.night .nls { border-top: 1px solid var(--ink); }
+.night .nl { display: grid; grid-template-columns: 6.2em minmax(0, 1fr) 120px; gap: 4px 12px; align-items: center; padding: 7px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); cursor: pointer; }
+.night .nl:hover { background: color-mix(in srgb, var(--rule) 25%, transparent); }
+.night .k { font-style: italic; color: var(--gray); font-size: 15px; }
+.night .v b { font-weight: 600; letter-spacing: 0.03em; }
+.night .v i { color: var(--gray); font-size: 14px; }
+.night .nsp { display: block; width: 120px; height: 22px; }
+@media (max-width: 560px) { .night .nl { grid-template-columns: 5.2em minmax(0, 1fr) 64px; } .night .nsp { width: 64px; } .night .v { font-size: 15px; } }
 .empty { color: var(--gray); font-style: italic; padding: 20px 0; }
 
 table.agate { border-collapse: collapse; width: 100%; font-size: 16px; }
@@ -244,6 +253,22 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dmid { text-align: center; color: var(--gray); font-style: italic; padding-bottom: 8px; }
 .dmid .lg { display: block; font-style: normal; letter-spacing: 0.08em; font-size: 14px; color: var(--ink); }
 .dmid .live { display: block; font-style: normal; color: var(--ink); font-weight: 500; }
+.dmid .wp { display: block; margin-top: 4px; font-size: 15px; }
+.dmid .wp b { font-style: normal; font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+.plays { margin: 14px 0 6px; }
+.plays h3 { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; margin: 0 0 2px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); }
+.plays h3 .c { letter-spacing: 0; font-style: italic; color: var(--gray); font-weight: 400; margin-left: 6px; }
+table.plays-t { border-collapse: collapse; width: 100%; font-size: 15px; }
+table.plays-t td { padding: 5px 6px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); vertical-align: baseline; }
+table.plays-t td.w { white-space: nowrap; color: var(--gray); font-style: italic; font-size: 14px; padding-left: 0; }
+table.plays-t td.t { white-space: nowrap; font-weight: 500; letter-spacing: 0.03em; }
+table.plays-t td.x { width: 100%; color: var(--ink); }
+table.plays-t td.s { white-space: nowrap; text-align: right; color: var(--gray); font-variant-numeric: lining-nums tabular-nums; padding-right: 0; }
+table.plays-t td.s .up { color: var(--ink); font-weight: 600; }
+table.plays-t tr.pl { cursor: pointer; }
+table.plays-t tr.pl:hover td, table.plays-t tr.pl.on td { background: color-mix(in srgb, var(--rule) 30%, transparent); }
+@media (max-width: 560px) { table.plays-t td.x { white-space: normal; font-size: 14px; } }
+:is(header, .pinbar) .pin .det .wp { display: block; font-size: 12px; font-style: italic; color: var(--band-gray); line-height: 1.1; margin-top: 2px; }
 .where { margin: -4px 0 0; display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 15px; color: var(--ink); }
 .where .wk b { font-weight: 400; font-style: italic; color: var(--gray); margin-right: 6px; }
 .driver .cap { margin: 2px 0 0; font-size: 14px; color: var(--gray); font-style: italic; }
@@ -554,8 +579,22 @@ header { view-transition-name: masthead; }
       return Object.assign({ id: String(tm.id), abbr: tm.abbreviation, name: tm.displayName,
         groups: plist.length ? [{ name: "Players", labels: labels, totals: null, players: plist }] : [] }, side[String(tm.id)] || {});
     });
+    // Scoring plays: ESPN lists them for football, hockey and baseball; soccer's
+    // goals are key events. Basketball has too many to list.
+    var plays = [], ta = 0, th = 0;
+    var raw = (d.scoringPlays || []).length ? d.scoringPlays : (d.keyEvents || []).filter(function (e) { return e.scoringPlay; });
+    raw.forEach(function (pl) {
+      var tid = String((pl.team || {}).id || ""), sd = side[tid], isHome = sd ? sd.home : null;
+      var hasScore = pl.homeScore != null && pl.awayScore != null;
+      if (!hasScore) { if (isHome === true) th++; else if (isHome === false) ta++; }
+      var per = pl.period || {}, ck = pl.clock || {};
+      plays.push({ per: +per.number || 1, half: per.type || "", clock: ck.value != null ? +ck.value : null, cd: ck.displayValue || "",
+        side: isHome == null ? "" : isHome ? "home" : "away", text: pl.text || pl.shortText || ((pl.type || {}).text) || "",
+        kind: (pl.scoringType || {}).displayName || ((pl.type || {}).text) || "",
+        a: hasScore ? +pl.awayScore : ta, h: hasScore ? +pl.homeScore : th });
+    });
     var st = ((comp.status || {}).type || {});
-    return { state: st.state, detail: st.shortDetail, teams: teams };
+    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays };
   }
 
   // ---- Preferences (this viewer only) ------------------------------------
@@ -692,6 +731,29 @@ header { view-transition-name: masthead; }
     var into = Math.max(0, Math.min(1, 1 - clock / len));
     if (per > l.n) return 1 + ((per - l.n - 1) + into) * (len / l.len) / l.n;
     return (per - 1 + into) / l.n;
+  }
+  // Where in the game a scoring play fell, on the same 0..1-per-regulation
+  // axis as the margin chart.
+  function playProgress(l, pl) {
+    if (l.innings) return (pl.per - 1 + (/^bot/i.test(pl.half) ? 0.75 : 0.25)) / l.n;
+    if (pl.clock == null) return null;
+    return progress(l, { state: "in", period: pl.per, clock: pl.clock, detail: "" });
+  }
+  // The margin's history rebuilt from the scoring plays, exact to the play.
+  function playsHist(l, ev, plays, marks) {
+    var pts = [{ p: 0, a: 0, h: 0 }], ok = true;
+    plays.forEach(function (pl) { var p = playProgress(l, pl); if (p == null) ok = false; else pts.push({ p: Math.max(p, pts[pts.length - 1].p), a: pl.a, h: pl.h }); });
+    if (!ok || pts.length < 2) return null;
+    var s = sides(ev), a = num(s.away.score), hh = num(s.home.score), end = progress(l, ev), last = pts[pts.length - 1];
+    if (a != null && hh != null) pts.push({ p: Math.max(end, last.p), a: a, h: hh });
+    return { pts: pts, marks: marks || [] };
+  }
+  // Polymarket's favourite and its chance, as "BUF 71%"; null when there's none.
+  function winChance(l, ev) {
+    var o = odds.get(l.key + ":" + ev.id);
+    if (!o || o.none || !o.side || ev.state === "post") return null;
+    var s = sides(ev), t = o.side === "home" ? s.home : s.away;
+    return { side: o.side, abbr: t.abbr || "", pct: Math.round(o.p * 100) };
   }
   function ensureHist(l, ev) {
     var key = l.key + ":" + ev.id, hs = hist.get(key);
@@ -1201,7 +1263,7 @@ header { view-transition-name: masthead; }
   // The margin over a game (home minus away), home lead above the line.
   // Small: a word-sized sparkline. Big: the game page, with its period
   // labels, the scale and the final margin written on the data.
-  function drawMargin(canvas, l, ev, hs, scale, big, s2) {
+  function drawMargin(canvas, l, ev, hs, scale, big, s2, sel) {
     var s = sizeCanvas(canvas);
     if (!s) return;
     var c = Object.assign({}, pal(), ev.teams && ev.teams.length ? teamColors(ev) : {}), g = s.g, W = s.w, H = s.h;
@@ -1264,6 +1326,14 @@ header { view-transition-name: masthead; }
     g.fillStyle = alpha(c.ink, 0.75);
     hs.marks.forEach(function (mk) { g.beginPath(); g.arc(X(mk.p), Y(mk.m), big ? 2.2 : 1.3, 0, Math.PI * 2); g.fill(); });
     if (ev.state === "in") { g.fillStyle = c.ink; g.beginPath(); g.arc(endX, endY, big ? 3.2 : 2, 0, Math.PI * 2); g.fill(); }
+    if (sel && sel.p != null) {
+      // A chosen scoring play: a hairline at its moment, ringed on the line.
+      var sx = Math.round(X(Math.min(sel.p, span))) + 0.5, sy = Y(sel.m);
+      g.strokeStyle = alpha(c.ink, 0.45); g.lineWidth = 1; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(sx, pad.t); g.lineTo(sx, H - pad.b); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = sel.side === "home" ? c.home : sel.side === "away" ? c.away : c.ink; g.lineWidth = 2;
+      g.beginPath(); g.arc(sx, sy, 5, 0, Math.PI * 2); g.stroke();
+    }
     if (big && s2) {
       g.font = "15px " + SERIF; g.textAlign = "left"; g.textBaseline = "middle";
       g.fillStyle = prevM > 0 ? c.home : prevM < 0 ? c.away : c.gray;
@@ -1461,7 +1531,23 @@ header { view-transition-name: masthead; }
   // another to replace it; hold the pinned one, in the list or the band, to
   // let it go. A tap still opens the game. The pin is kept on this device,
   // with the last score seen, so it shows even before the scores load.
-  function pressable(el, onTap, onHold) {
+  // A tap of the phone's haptics. Android has vibrate(); iPhones have none for
+  // web pages, but toggling a hidden iOS switch control gives its system tick.
+  function haptic() {
+    try { if (navigator.vibrate && navigator.vibrate(15)) return; } catch (e) {}
+    try {
+      var lb = document.getElementById("hap");
+      if (!lb) {
+        lb = document.createElement("label"); lb.id = "hap"; lb.setAttribute("aria-hidden", "true");
+        lb.style.cssText = "position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
+        var sw = document.createElement("input"); sw.type = "checkbox"; sw.setAttribute("switch", ""); sw.tabIndex = -1;
+        lb.appendChild(sw); document.body.appendChild(lb);
+      }
+      lb.click();
+    } catch (e) {}
+  }
+  function pressable(el, onTap, onHold0) {
+    var onHold = function () { haptic(); onHold0(); };
     var t = null, held = false, sx = 0, sy = 0;
     el.addEventListener("pointerdown", function (e) {
       if (e.button > 0) return;
@@ -1477,7 +1563,8 @@ header { view-transition-name: masthead; }
   function snapOf(l, ev) {
     var s = sides(ev), tc = teamColors(ev);
     return { away: s.away.abbr, home: s.home.abbr, as: s.away.score, hs: s.home.score, ac: s.away.color, hc: s.home.color,
-      state: ev.state, detail: ev.state === "pre" ? whenText(ev.date) : ev.detail || "", lg: l.label };
+      state: ev.state, detail: ev.state === "pre" ? whenText(ev.date) : ev.detail || "", lg: l.label,
+      wp: (function () { var w = winChance(l, ev); return w ? w.abbr + " " + w.pct + "%" : ""; })() };
   }
   var noteTimer = null;
   function flashNote(text) {
@@ -1494,7 +1581,7 @@ header { view-transition-name: masthead; }
     var el = $("pin");
     if (!prefs.pin) { el.hidden = true; el.replaceChildren(); if (typeof checkStick === "function") checkStick(); return; }
     var l = BY_KEY[prefs.pin.l], ev = l && findEvent(l, prefs.pin.id);
-    if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail) { prefs.pin.snap = sn; savePrefs(); } }
+    if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail || sn.wp !== old.wp) { prefs.pin.snap = sn; savePrefs(); } }
     var p = prefs.pin.snap;
     if (!p) { el.hidden = true; return; }
     var band = rgbOf(getComputedStyle(document.getElementById("pinbar")).backgroundColor) || [29, 28, 26];
@@ -1507,7 +1594,8 @@ header { view-transition-name: masthead; }
         h("span", { class: "n" + (a > hh ? " up" : ""), text: p.state === "pre" ? "" : String(p.as == null ? "" : p.as) })]),
       h("span", { class: "side" }, [h("span", { class: "n" + (hh > a ? " up" : ""), text: p.state === "pre" ? "" : String(p.hs == null ? "" : p.hs) }),
         h("span", { class: "ab", text: p.home || "?" }), h("span", { class: "sw", style: "background:" + col(p.hc) })]),
-      h("span", { class: "det", text: (p.state === "pre" ? p.detail : p.detail || (p.state === "post" ? "Final" : "")) + (ev ? "" : p.lg ? " · " + p.lg : "") }));
+      h("span", { class: "det" }, [(p.state === "pre" ? p.detail : p.detail || (p.state === "post" ? "Final" : "")) + (ev ? "" : p.lg ? " · " + p.lg : ""),
+        p.wp && p.state !== "post" ? h("span", { class: "wp", text: p.wp + " to win" }) : null]));
     el.setAttribute("aria-label", "Pinned: " + (p.away || "") + " " + (p.as || "") + ", " + (p.home || "") + " " + (p.hs || "") + ". Tap to open, hold to unpin.");
     var pc = $("pinc"); pc.className = el.className; pc.setAttribute("aria-label", el.getAttribute("aria-label"));
     pc.replaceChildren.apply(pc, Array.prototype.map.call(el.childNodes, function (n) { return n.cloneNode(true); }));
@@ -1652,6 +1740,50 @@ header { view-transition-name: masthead; }
     return h("div", { class: "f1" }, [h("div", { class: "f1h", text: "Formula 1" })].concat(evs.map(function (ev) { return f1Item(l, ev); })));
   }
 
+  // The night at a glance: the biggest comeback, the upset (Polymarket's
+  // pre-game favourite beaten) and the closest finish, each with its line.
+  function nightSummary(list) {
+    var best = { comeback: null, upset: null, close: null };
+    list.forEach(function (x) {
+      var l = x.l, ev = x.ev, s = sides(ev), a = num(s.away.score), hh = num(s.home.score);
+      if (a == null || hh == null) return;
+      var unit = l.unit || 1, m = hh - a, win = m > 0 ? "home" : m < 0 ? "away" : null;
+      var hs = ensureHist(l, ev);
+      if (win) {
+        var down = 0;
+        hs.pts.forEach(function (q) { var mm = q.h - q.a; var d = win === "home" ? -mm : mm; if (d > down) down = d; });
+        if (down > 0 && (!best.comeback || down / unit > best.comeback.r)) best.comeback = { r: down / unit, x: x, down: down, win: win };
+        var od = odds.get(l.key + ":" + ev.id), sh = od && od.shadow;
+        if (sh && sh.length) {
+          var t0 = Date.parse(ev.date), pre = sh.filter(function (q) { return q.t <= t0; }).pop() || sh[0];
+          var ch = win === "home" ? (1 + pre.s) / 2 : (1 - pre.s) / 2;
+          if (ch < 0.5 && (!best.upset || ch < best.upset.ch)) best.upset = { ch: ch, x: x, win: win };
+        }
+        var r = Math.abs(m) / unit;
+        if (!best.close || r < best.close.r) best.close = { r: r, x: x, win: win };
+      }
+    });
+    function line(label, item, words) {
+      if (!item) return null;
+      var l = item.x.l, ev = item.x.ev, c = h("canvas", { class: "nsp", "aria-hidden": "true" });
+      pending.push(function () { drawMargin(c, l, ev, ensureHist(l, ev), leagueScale(l), false); });
+      return h("div", { class: "nl", tabindex: "0", role: "link", onclick: function () { openGame(l, ev); },
+        onkeydown: function (e) { if (e.key === "Enter") openGame(l, ev); } }, [
+        h("span", { class: "k", text: label }), h("span", { class: "v" }, words), c]);
+    }
+    function names(x, win) {
+      var s = sides(x.ev), W = s[win], L = s[win === "home" ? "away" : "home"];
+      return { w: W.abbr || W.name, lo: L.abbr || L.name, sc: W.score + "–" + L.score, lg: x.l.label };
+    }
+    var cb = best.comeback, up = best.upset, cl = best.close, rows = [];
+    if (cb) { var n1 = names(cb.x, cb.win); rows.push(line("Comeback", cb, [h("b", { text: n1.w }), " were down " + cb.down + ", beat " + n1.lo + " " + n1.sc, h("i", { text: " " + n1.lg })])); }
+    if (up) { var n2 = names(up.x, up.win); rows.push(line("Upset", up, [h("b", { text: n2.w }), " won at " + Math.round(up.ch * 100) + "% before the start, " + n2.sc + " over " + n2.lo, h("i", { text: " " + n2.lg })])); }
+    if (cl) { var n3 = names(cl.x, cl.win); rows.push(line("Closest", cl, [h("b", { text: n3.w }), " beat " + n3.lo + " " + n3.sc, h("i", { text: " " + n3.lg })])); }
+    if (!rows.length) return null;
+    return h("section", { class: "group night" }, [
+      h("h2", null, ["The night", h("span", { class: "c", text: list.length + (list.length === 1 ? " final" : " finals") })]),
+      h("div", { class: "nls" }, rows)]);
+  }
   function render() {
     if (moving) { dirty = true; return; }
     renderLeagues(); renderStatus(); renderAlertsButton(); renderPin();
@@ -1669,6 +1801,11 @@ header { view-transition-name: masthead; }
       ((data[l.key] || {}).events || []).forEach(function (ev) { list.push({ l: l, li: li, ev: ev }); });
     });
     var showF1 = prefs.league === "all" || prefs.league === "f1";
+    // Once the day's last game is over, the night in three lines on top.
+    if (isToday() && mode === "live" && list.length && list.every(function (x) { return x.ev.state === "post"; })) {
+      var night = nightSummary(list);
+      if (night) main.append(night);
+    }
     [["in", "Live"], ["post", "Final"], ["pre", "Coming up"]].forEach(function (g, gi) {
       var items = list.filter(function (x) { return (x.ev.state || "pre") === g[0]; });
       var f1 = showF1 ? f1Block(BY_KEY.f1, g[0]) : null, nf1 = f1 ? f1.querySelectorAll(".ev").length : 0;
@@ -1971,6 +2108,30 @@ header { view-transition-name: masthead; }
     return parts.length ? h("span", { class: "rec", text: parts.join(" · ") }) : "";
   }
   var tablesKey = "";
+  var sel = { key: "", i: -1 };
+  // The scoring plays, newest last, as the game read: when, who, what, the
+  // score after. Tap one to find it on the chart above; tap again to clear.
+  function renderPlays(l, ev, plays, tc, away, home) {
+    var box2 = $("dplays");
+    if (!plays.length) { box2.replaceChildren(); box2.className = ""; return; }
+    box2.className = "plays";
+    var rows = plays.map(function (pl, i) {
+      var when = l.innings ? (/^bot/i.test(pl.half) ? "Bot " : "Top ") + pl.per
+        : (pl.per > l.n ? "OT" + (pl.per - l.n > 1 ? pl.per - l.n : "") : (l.pl || "") + pl.per) + (pl.cd ? " " + pl.cd : "");
+      if (l.up) when = pl.cd || when;
+      var t = pl.side === "home" ? home : pl.side === "away" ? away : null, col = tc && pl.side ? tc[pl.side] : "transparent";
+      var tr = h("tr", { class: "pl" + (i === sel.i ? " on" : ""), tabindex: "0", role: "button", "aria-pressed": i === sel.i ? "true" : "false",
+        onclick: function () { sel.i = sel.i === i ? -1 : i; renderDetail(false); },
+        onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sel.i = sel.i === i ? -1 : i; renderDetail(false); } } }, [
+        h("td", { class: "w", text: when }),
+        h("td", { class: "t" }, [h("span", { class: "sw", style: "background:" + col }), (t && (t.abbr || t.name)) || ""]),
+        h("td", { class: "x", text: pl.text }),
+        h("td", { class: "s" }, [h("span", { class: pl.a > pl.h ? "up" : null, text: String(pl.a) }), "–", h("span", { class: pl.h > pl.a ? "up" : null, text: String(pl.h) })])]);
+      return tr;
+    });
+    box2.replaceChildren(h("h3", null, ["Scoring", h("span", { class: "c", text: " tap one to find it on the chart" })]),
+      h("div", { class: "scroll" }, [h("table", { class: "plays-t" }, [h("tbody", null, rows)])]));
+  }
   function renderDetail(tablesToo) {
     if (moving) { dirty = true; return; }
     var d = $("detail");
@@ -1982,7 +2143,7 @@ header { view-transition-name: masthead; }
     var bx = box.data;
     if (!$("dhead")) {
       d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { id: "dhead" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+        h("div", { id: "dhead" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
       renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
@@ -1995,7 +2156,9 @@ header { view-transition-name: masthead; }
     dh.replaceChildren(
       h("div", { class: "dteam away" }, [h("span", { class: "nm", style: tc ? "color:" + tc.away : null, text: away.full || away.name || "" }), recLine(away), h("span", { class: "big", text: state === "pre" ? "–" : String(away.score == null ? "" : away.score) })]),
       h("div", { class: "dmid" }, [h("span", { class: "lg", text: (ev && ev.example ? "Example. " : "") + l.label }),
-        state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" })]),
+        state === "in" ? h("span", { class: "live", text: detail || "Live" }) : h("span", { text: state === "pre" && ev ? whenText(ev.date) : detail || "" }),
+        (function () { var w = ev && winChance(l, ev); return w ? h("span", { class: "wp", title: "Polymarket's chance of winning" },
+          [h("b", { style: tc ? "color:" + tc[w.side] : null, text: w.abbr + " " + w.pct + "%" }), " to win"]) : null; })()]),
       h("div", { class: "dteam home" }, [h("span", { class: "nm", style: tc ? "color:" + tc.home : null, text: home.full || home.name || "" }), recLine(home), h("span", { class: "big", text: state === "pre" ? "–" : String(home.score == null ? "" : home.score) })]));
     vtName(dh.querySelector(".dteam.away .nm"), "vt-away"); vtName(dh.querySelector(".dteam.home .nm"), "vt-home");
     vtName(dh.querySelector(".dteam.away .big"), "vt-as"); vtName(dh.querySelector(".dteam.home .big"), "vt-hs");
@@ -2004,13 +2167,21 @@ header { view-transition-name: masthead; }
       oddsQueue.push({ k: l.key + ":" + ev.id, l: l, ev: ev }); pumpOdds();
     }
     var dr = $("driver"), hs = ev ? hist.get(l.key + ":" + ev.id) : null;
+    var plays = (bx && bx.plays) || [], playsKey = box.key + ":" + plays.length;
+    if (sel.key !== playsKey) sel = { key: playsKey, i: -1 };
+    // When the game wasn't watched live, the scoring plays draw it exactly.
+    var hsDraw = hs;
+    if (ev && hs && plays.length && !hs.pts.some(function (q) { return q.t; })) hsDraw = playsHist(l, ev, plays, hs.marks) || hs;
+    var chosen = sel.i >= 0 && plays[sel.i] ? plays[sel.i] : null;
+    var selPt = chosen ? { p: playProgress(l, chosen), m: chosen.h - chosen.a, side: chosen.side } : null;
     if (ev && hs && state !== "pre") {
       dr.className = "driver"; vtName(dr, "vt-chart");
       var c = h("canvas", { "aria-label": "Margin over the game; home lead above the line" });
       var odc = odds.get(l.key + ":" + ev.id);
       dr.replaceChildren(c, odc && odc.shadow && odc.shadow.length > 1 ? h("p", { class: "cap", text: "Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing." }) : "");
-      schedDraw(function () { drawMargin(c, l, ev, hs, leagueScale(l), true, s); });
+      schedDraw(function () { drawMargin(c, l, ev, hsDraw, leagueScale(l), true, s, selPt); });
     } else { dr.className = ""; dr.style.viewTransitionName = ""; dr.replaceChildren(); }
+    renderPlays(l, ev, plays, tc, away, home);
     var note = $("dnote");
     note.className = "dnote" + (box.error ? " err" : "");
     if (box.error) note.textContent = "Couldn't load the box score: " + box.error;
