@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2007">
+<meta name="agate-version" content="2026.11.26-2011">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -366,7 +366,7 @@ header { view-transition-name: masthead; }
       <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
-<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div></div></div></div>
+<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div></div></div>
   <div class="banner" id="banner" hidden></div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
@@ -2047,7 +2047,7 @@ header { view-transition-name: masthead; }
     var left = a.right + 16, right = (d && d.width ? d.left : pr.right) - 16;
     if (right - left < 40) return null;
     var hgt = 26, mid = a.top + a.height * 0.55;
-    return { left: left, top: mid - hgt / 2, width: right - left, height: hgt };
+    return { left: left, top: mid - hgt / 2, width: Math.min(right - left, 320), height: hgt };   // no wider than a list sparkline
   }
   // Draw the pinned game's margin, in its league's scale; false if there's nothing to draw.
   function drawPinMargin() {
@@ -2103,7 +2103,11 @@ header { view-transition-name: masthead; }
     }
   }
   addEventListener("scroll", function () { if (!stickQueued) { stickQueued = true; stickQueuedByScroll = true; requestAnimationFrame(checkStick); } }, { passive: true });
-  addEventListener("resize", function () { if (stuck) stick(false); checkStick(); });
+  addEventListener("resize", function () {
+    // re-measure quietly: no replaying the draw-out on every resize step
+    if (stuck) { var r = $("pin").getBoundingClientRect(), inn = $("pinbar").firstElementChild; inn.style.marginLeft = r.left + "px"; inn.style.width = r.width + "px"; placeMini(); }
+    checkStick();
+  });
   addEventListener("hashchange", function () { setTimeout(checkStick, 50); });
   pressable($("pinc"), function () { var p = prefs.pin, l = p && BY_KEY[p.l]; if (l) openGame(l, { id: p.id }); },
     function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
