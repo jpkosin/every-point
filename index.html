@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2111">
+<meta name="agate-version" content="2026.11.27-1729">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -370,6 +370,44 @@ table.tsched tr.go:hover td { background: color-mix(in srgb, var(--rule) 25%, tr
 .tleaders .tl { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 0 10px; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); }
 .tleaders .k { font-style: italic; color: var(--gray); grid-row: span 2; }
 .tleaders .v { color: var(--gray); font-size: 14px; }
+/* ---- motion ---- */
+/* margin lines draw themselves in, left to right, as a day's page loads */
+td.sp canvas.reveal { animation: reveal 900ms cubic-bezier(.3, .6, .2, 1) both; }
+@keyframes reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2px 0 0); } }
+/* a new score rolls in like an odometer: the old number up and out, the new up from below */
+.roll { display: inline-block; height: 1.15em; line-height: 1.15em; overflow: hidden; vertical-align: bottom; }
+.roll > span { display: flex; flex-direction: column; animation: odo 520ms cubic-bezier(.3, .7, .2, 1) both; }
+.roll > span > span { height: 1.15em; }
+@keyframes odo { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+/* the pinned win chance, ticking */
+:is(header, .pinbar) .pin .det .wp.tick-up b, :is(header, .pinbar) .pin .det .wp.tick-down b { transition: color 1.2s; }
+:is(header, .pinbar) .pin .det .wp b { font-weight: 500; font-style: normal; color: var(--band-ink); }
+:is(header, .pinbar) .pin .det .wp.tick-up b { color: #9fd49a; }
+:is(header, .pinbar) .pin .det .wp.tick-down b { color: var(--band-red); }
+@media (prefers-reduced-motion: reduce) { td.sp canvas.reveal, .roll > span { animation: none; } .roll > span { transform: translateY(-50%); } }
+/* swiping between days */
+#games.swipe-out { transition: transform 160ms ease-in, opacity 160ms ease-in; }
+/* search */
+.find { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) max(4vw, 16px) 20px; overflow-y: auto; }
+.find[hidden] { display: none; }
+.find .fin { max-width: 640px; margin: 0 auto; }
+.find input { width: 100%; box-sizing: border-box; font: inherit; font-size: 22px; padding: 10px 12px; border: 0; border-bottom: 2px solid var(--ink); background: transparent; color: var(--ink); outline: none; border-radius: 0; }
+.find input::placeholder { color: var(--gray); font-style: italic; }
+.find ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.find li { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 10px 2px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 45%, transparent); cursor: pointer; font-size: 18px; }
+.find li .sw { width: 5px; height: 1em; display: inline-block; align-self: center; }
+.find li .lg { color: var(--gray); font-style: italic; font-size: 15px; }
+.find li .fv { color: var(--gray); font-size: 14px; margin-left: 6px; }
+.find li.on, .find li:hover { background: color-mix(in srgb, var(--rule) 30%, transparent); }
+.find .hint { color: var(--gray); font-style: italic; font-size: 15px; margin-top: 10px; }
+.find .x { float: right; margin-top: 8px; }
+.pullhint { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 55; transform: translate(-50%, -40px); opacity: 0; pointer-events: none;
+  background: var(--band); color: var(--band-ink); font-style: italic; font-size: 14px; padding: 5px 12px; border-radius: 14px; }
+/* favourite button on a team page */
+.thead .fav-btn { margin-top: 6px; }
+.thead .fav-btn[aria-pressed="true"] { color: var(--ink); }
+:is(header, .pinbar) .pin .fstar { color: var(--band-gray); font-size: 12px; margin-right: 4px; font-style: normal; }
 .phead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
 .phead .jn { font-size: clamp(64px, 16vw, 112px); line-height: 0.85; font-weight: 500; letter-spacing: -0.03em; }
 .phead .pn { margin: 0; font-style: normal; font-size: clamp(28px, 6vw, 40px); line-height: 1.05; }
@@ -418,12 +456,18 @@ header { view-transition-name: masthead; }
     </div>
     <span class="status" id="status">Starting</span>
     <div class="tools">
+      <button class="link" id="findb" type="button" title="Find a team (or pull down from the top)">Find</button>
       <button class="link" id="alerts" type="button" hidden>Alerts</button>
       <button class="link" id="theme" type="button">◐ <span id="theme-v">Auto</span></button>
       <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
   <div class="banner" id="banner" hidden></div>
+  <div class="find" id="find" hidden role="dialog" aria-label="Find a team"><div class="fin">
+    <button class="link x" id="findx" type="button">Close</button>
+    <input id="findq" type="search" placeholder="Find a team" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+    <ul id="findr"></ul><p class="hint" id="findh"></p></div></div>
+  <div class="pullhint" id="pullhint" aria-hidden="true">Pull to find a team</div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
   <nav class="leagues" id="leagues" aria-label="Leagues"></nav>
@@ -625,7 +669,7 @@ header { view-transition-name: masthead; }
   }
 
   // ---- Preferences (this viewer only) ------------------------------------
-  var prefs = { league: "all", bells: {}, stars: {}, sound: false, theme: "auto" };
+  var prefs = { league: "all", bells: {}, stars: {}, sound: false, theme: "auto", favs: {} };
   try {
     var saved = JSON.parse(localStorage.getItem("every-point") || "null");
     if (saved && typeof saved === "object") prefs = Object.assign(prefs, saved);
@@ -859,8 +903,8 @@ header { view-transition-name: masthead; }
       }
       lastError = "";
       mode = "live";
-      if (view && !view.player && !view.team && !box.data && !box.loading) loadBox();
-      if (view && !view.player && !view.team && mk.key !== view.l.key + ":" + view.id) loadMarkets();
+      if (view && !view.player && !view.team && !view.stand && !box.data && !box.loading) loadBox();
+      if (view && !view.player && !view.team && !view.stand && mk.key !== view.l.key + ":" + view.id) loadMarkets();
     } catch (e) {
       if (String(e && e.message) === "STALE") { busy = false; poll(); return; }
       mode = "live";
@@ -974,7 +1018,7 @@ header { view-transition-name: masthead; }
   function setDay(s) {
     if (s === ymd(new Date())) s = null;
     if (s === day) return;
-    day = s; data = {}; fetchedAt = {};
+    day = s; data = {}; fetchedAt = {}; reveal.pending = true;
     render(); clearTimeout(timer); poll();
   }
   function renderDays() {
@@ -1072,7 +1116,7 @@ header { view-transition-name: masthead; }
   }
   var mk = { key: "", poly: null, at: 0 }, mkTimer = null;
   async function loadMarkets() {
-    if (!view || view.player || view.team) return;
+    if (!view || view.player || view.team || view.stand) return;
     var l = view.l, key = l.key + ":" + view.id, ev = findEvent(l, view.id);
     clearTimeout(mkTimer);
     if (!ev) return;
@@ -1424,9 +1468,10 @@ header { view-transition-name: masthead; }
     LEAGUES.filter(function (l) { return !offSeason(l); }).concat(LEAGUES.filter(offSeason)).forEach(function (l) {
       var on = prefs.league === l.key, d = data[l.key] || {}, off = offSeason(l), back = off && returnDate(l);
       nav.append(h("div", { class: "league" + (on ? " on" : "") + (off ? " off" : "") }, [
-        h("button", { class: "pick", type: "button", "aria-pressed": String(on),
-          title: (l.title || l.label) + (off ? ": off-season" + (back ? ", back " + back : "") : ""),
+        holdable(h("button", { class: "pick", type: "button", "aria-pressed": String(on),
+          title: (l.title || l.label) + (off ? ": off-season" + (back ? ", back " + back : "") : "") + (l.race ? "" : ". Hold for standings."),
           onclick: function () { prefs.league = l.key; savePrefs(); render(); } }, [l.label, off ? h("span", { class: "n", text: "off" }) : countEl(l.key)]),
+          l.race ? null : function () { backTo = location.hash; location.hash = "standings-" + l.key; }),
         d.error && mode === "live" ? h("span", { class: "err", title: d.error, text: "(error)" }) : null,
         h("button", { class: "ico", type: "button", "aria-pressed": String(prefs.bells[l.key]), "aria-label": l.label + " alerts",
           title: prefs.bells[l.key] ? l.label + " alerts on" : l.label + " alerts off",
@@ -1574,6 +1619,20 @@ header { view-transition-name: masthead; }
       lb.click();
     } catch (e) {}
   }
+  // A hold on something that already has its own tap (a league's tab):
+  // the hold runs, and the click that follows it is swallowed.
+  function holdable(el, onHold) {
+    if (!onHold) return el;
+    var t = null, held = false, sx = 0, sy = 0;
+    el.addEventListener("pointerdown", function (e) { if (e.button > 0) return; held = false; sx = e.clientX; sy = e.clientY;
+      t = setTimeout(function () { t = null; held = true; try { if (navigator.vibrate) navigator.vibrate(15); } catch (x) {} onHold(); }, 480); });
+    el.addEventListener("pointermove", function (e) { if (t && (Math.abs(e.clientX - sx) > 9 || Math.abs(e.clientY - sy) > 9)) { clearTimeout(t); t = null; } });
+    el.addEventListener("touchend", function () { if (held) haptic(true); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { el.addEventListener(n, function () { clearTimeout(t); t = null; }); });
+    el.addEventListener("click", function (e) { if (held) { held = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+    el.addEventListener("contextmenu", function (e) { e.preventDefault(); if (!held) { held = true; onHold(); } });
+    return el;
+  }
   function pressable(el, onTap, onHold0) {
     // Android buzzes the moment the hold takes; iPhones only allow the tick
     // during a real touch event, so it comes as the finger lifts.
@@ -1602,11 +1661,62 @@ header { view-transition-name: masthead; }
     var st = $("status"); st.textContent = text; st.className = "status note";
     clearTimeout(noteTimer); noteTimer = setTimeout(function () { noteTimer = null; renderStatus(); }, 3500);
   }
+  function unpin() {
+    if (!prefs.pin) return;
+    // a favourite's game that was unpinned stays off the top for the day
+    if (prefs.pin.auto) prefs.autoOff = prefs.pin.l + ":" + prefs.pin.id;
+    prefs.pin = null; savePrefs(); render(); flashNote("Unpinned.");
+  }
+  // Favourite teams: on a day one of them plays, its game fills the top
+  // spot by itself, unless a game was pinned by hand. Live first, then the
+  // next to start, then the one that finished last.
+  function favKey(l, id) { return l + ":" + id; }
+  function isFav(l, id) { return !!(prefs.favs && prefs.favs[favKey(l.key, id)]); }
+  function autoPin() {
+    if (!isToday() || mode !== "live" || (prefs.pin && !prefs.pin.auto)) return;
+    var favs = prefs.favs || {}, cand = [];
+    Object.keys(favs).forEach(function (k) {
+      var f = favs[k], l = BY_KEY[f.l]; if (!l) return;
+      ((data[l.key] || {}).events || []).forEach(function (ev) {
+        var s = sides(ev);
+        if (String(s.home.id) !== String(f.id) && String(s.away.id) !== String(f.id)) return;
+        if (prefs.autoOff === l.key + ":" + ev.id) return;
+        cand.push({ l: l, ev: ev });
+      });
+    });
+    var rank = function (x) { return x.ev.state === "in" ? 0 : x.ev.state === "pre" ? 1 : 2; };
+    cand.sort(function (a, b) { return rank(a) - rank(b) || (rank(a) === 2 ? Date.parse(b.ev.date) - Date.parse(a.ev.date) : Date.parse(a.ev.date) - Date.parse(b.ev.date)); });
+    var best = cand[0];
+    if (!best) { if (prefs.pin && prefs.pin.auto) { prefs.pin = null; savePrefs(); } return; }
+    if (prefs.pin && prefs.pin.l === best.l.key && String(prefs.pin.id) === String(best.ev.id)) return;
+    prefs.pin = { l: best.l.key, id: best.ev.id, snap: snapOf(best.l, best.ev), auto: true }; savePrefs();
+  }
   function togglePin(l, ev) {
     if (l.race) return;
-    if (isPinned(l, ev)) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); return; }
+    if (isPinned(l, ev)) { unpin(); return; }
     prefs.pin = { l: l.key, id: ev.id, snap: snapOf(l, ev) }; savePrefs(); render();
     var s = sides(ev); flashNote("Pinned " + (s.away.abbr || "") + " at " + (s.home.abbr || "") + " to the top. Hold it again to unpin.");
+  }
+  // The pinned win chance counts its way to each new value, green as it
+  // rises and red as it falls, then settles back.
+  var wpTick = { key: "", ab: "", v: null, shown: null, raf: 0, until: 0, dir: "" };
+  function wpSpan(p) {
+    var m = /^(.*\S)\s+(\d+)%$/.exec(p.wp || ""), key = p.l || "", ab = m ? m[1] : "", v = m ? +m[2] : null;
+    var k = (prefs.pin && prefs.pin.l + ":" + prefs.pin.id) || "";
+    if (v != null && wpTick.key === k && wpTick.ab === ab && wpTick.v != null && v !== wpTick.v) {
+      var from = wpTick.shown != null ? wpTick.shown : wpTick.v, t0 = Date.now();
+      wpTick.dir = v > wpTick.v ? "tick-up" : "tick-down"; wpTick.until = t0 + 2200;
+      cancelAnimationFrame(wpTick.raf);
+      (function step() {
+        var k2 = Math.min(1, (Date.now() - t0) / 900), cur = Math.round(from + (v - from) * (1 - Math.pow(1 - k2, 3)));
+        wpTick.shown = cur;
+        document.querySelectorAll(".pin .wp b").forEach(function (b) { b.textContent = ab + " " + cur + "%"; });
+        if (k2 < 1) wpTick.raf = requestAnimationFrame(step); else wpTick.shown = null;
+      })();
+    }
+    wpTick.key = k; wpTick.ab = ab; if (v != null) wpTick.v = v;
+    var shown = wpTick.shown != null ? ab + " " + wpTick.shown + "%" : p.wp;
+    return h("span", { class: "wp" + (Date.now() < wpTick.until ? " " + wpTick.dir : "") }, [h("b", { text: shown }), " to win"]);
   }
   function renderPin() {
     var el = $("pin");
@@ -1621,12 +1731,12 @@ header { view-transition-name: masthead; }
     el.hidden = false;
     el.className = "pin" + (live ? " live" : "");
     el.replaceChildren(
-      h("span", { class: "side" }, [h("span", { class: "sw", style: "background:" + col(p.ac) }), h("span", { class: "ab", text: p.away || "?" }),
+      h("span", { class: "side" }, [prefs.pin.auto ? h("span", { class: "fstar", title: "A favourite team's game", text: "★" }) : null, h("span", { class: "sw", style: "background:" + col(p.ac) }), h("span", { class: "ab", "data-team": p.aid || null, text: p.away || "?" }),
         h("span", { class: "n" + (a > hh ? " up" : ""), text: p.state === "pre" ? "" : String(p.as == null ? "" : p.as) })]),
       h("span", { class: "side" }, [h("span", { class: "n" + (hh > a ? " up" : ""), text: p.state === "pre" ? "" : String(p.hs == null ? "" : p.hs) }),
         h("span", { class: "ab", "data-team": p.hid || null, text: p.home || "?" }), h("span", { class: "sw", style: "background:" + col(p.hc) })]),
       h("span", { class: "det" }, [(p.state === "pre" ? p.detail : p.detail || (p.state === "post" ? "Final" : "")) + (ev ? "" : p.lg ? " · " + p.lg : ""),
-        p.wp && p.state !== "post" ? h("span", { class: "wp", text: p.wp + " to win" }) : null]));
+        p.wp && p.state !== "post" ? wpSpan(p) : null]));
     el.setAttribute("aria-label", "Pinned: " + (p.away || "") + " " + (p.as || "") + ", " + (p.home || "") + " " + (p.hs || "") + ". Tap to open, hold to unpin.");
     var pc = $("pinc"); pc.className = el.className; pc.setAttribute("aria-label", el.getAttribute("aria-label"));
     pc.replaceChildren.apply(pc, Array.prototype.map.call(el.childNodes, function (n) { return n.cloneNode(true); }));
@@ -1634,25 +1744,60 @@ header { view-transition-name: masthead; }
   }
 
   var pending = [];
+  // Draw-in: the first time a day's games appear, each line traces itself
+  // left to right, a row a moment after the one above. Delays are set from
+  // a fixed start, so re-renders mid-way carry on rather than restart.
+  var reveal = { pending: true, at: 0, i: 0 };
+  function revealCanvas(c) {
+    var now = Date.now();
+    if (reveal.pending) { reveal.pending = false; reveal.at = now; }
+    var start = reveal.at + Math.min(reveal.i++, 24) * 35;
+    if (now > start + 1000) return;
+    c.classList.add("reveal"); c.style.animationDelay = (start - now) + "ms";
+  }
+  // The index where the margin last changed: the newest score's step.
+  function lastStep(pts) { for (var i = pts.length - 1; i > 0; i--) if (pts[i].h - pts[i].a !== pts[i - 1].h - pts[i - 1].a) return i; return -1; }
+  var STEP_MS = 700;
+  // After a score, the new step rises (or falls) into place instead of jumping.
+  function drawStepping(canvas, l, ev, hs, scale, at) {
+    var j = lastStep(hs.pts);
+    if (j < 1 || matchMedia("(prefers-reduced-motion: reduce)").matches) { drawMargin(canvas, l, ev, hs, scale, false); return; }
+    var p0 = hs.pts[j - 1], m0 = p0.h - p0.a;
+    (function frame() {
+      if (!canvas.isConnected) return;
+      var k = Math.min(1, (Date.now() - at) / STEP_MS), e = 1 - Math.pow(1 - k, 3);
+      var pts = hs.pts.map(function (q, i) { if (i < j) return q; var m = q.h - q.a; return Object.assign({}, q, { a: 0, h: m0 + (m - m0) * e }); });
+      drawMargin(canvas, l, ev, Object.assign({}, hs, { pts: pts }), scale, false);
+      if (k < 1) requestAnimationFrame(frame);
+    })();
+  }
+  // A score cell; just after it changed, the old number rolls up and out.
+  function scoreCell(cls, val, old, at) {
+    var now = Date.now();
+    if (old == null || old === val || val == null || !at || now - at > 900) return h("td", { class: cls, text: val == null ? "" : String(val) });
+    return h("td", { class: cls }, [h("span", { class: "roll" }, [h("span", { style: "animation-delay:-" + (now - at) + "ms" }, [h("span", { text: String(old) }), h("span", { text: String(val) })])])]);
+  }
   function gameRow(l, ev, scale) {
     var s = sides(ev), hs = ensureHist(l, ev), now = Date.now(), tc = teamColors(ev);
     var lastMark = hs.marks[hs.marks.length - 1], hot = lastMark && now - lastMark.at < FLASH_MS;
     var a = num(s.away.score), hh = num(s.home.score);
     var canvas = h("canvas", { "aria-label": "Margin over the game" });
+    revealCanvas(canvas);
+    var jStep = lastStep(hs.pts), before = jStep > 0 ? hs.pts[jStep - 1] : null, markAt = lastMark ? lastMark.at : 0;
     var play = ev.state === "in" ? [ev.down, ev.play].filter(Boolean).join(". ") : "";
     var row = h("tr", { class: "row" + (hot ? " hot" : "") + (isPinned(l, ev) ? " pinned" : ""), tabindex: "0",
       style: hot ? "--hotc:" + alpha(tc[lastMark.side] || tc.home, 0.2) : null,
       "aria-label": (s.away.full || s.away.abbr || "") + " at " + (s.home.full || s.home.abbr || "") + ": game page; hold to pin to the top",
       onkeydown: function (e) { if (e.key === "Enter" && e.target === row) openGame(l, ev); else if ((e.key === "p" || e.key === "P") && e.target === row) togglePin(l, ev); } }, [
       h("td", { class: "tm a", title: (s.away.full || "") + (s.away.record ? " (" + dash(s.away.record) + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.away }), s.away.abbr || "?", favMark(l, ev, "away")]),
-      h("td", { class: "sc" + (a > hh ? " lead" : ""), text: a == null ? "" : String(a) }),
+      scoreCell("sc" + (a > hh ? " lead" : ""), a, before && lastMark && lastMark.side === "away" ? before.a : null, markAt),
       h("td", { class: "sp" }, [canvas]),
-      h("td", { class: "sc h" + (hh > a ? " lead" : ""), text: hh == null ? "" : String(hh) }),
+      scoreCell("sc h" + (hh > a ? " lead" : ""), hh, before && lastMark && lastMark.side === "home" ? before.h : null, markAt),
       h("td", { class: "tm", title: (s.home.full || "") + (s.home.record ? " (" + dash(s.home.record) + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.home }), s.home.abbr || "?", favMark(l, ev, "home")]),
       h("td", { class: "st" + (ev.state === "in" ? " live" : ""), text: (ev.example ? "Example. " : "") + (ev.detail || (ev.state === "post" ? "Final" : "")) }),
       h("td", { class: "lp", title: play || null, text: play })]);
     if (hot) row.querySelectorAll("td").forEach(function (td) { td.style.animationDelay = "-" + ((now - lastMark.at) / 1000).toFixed(2) + "s"; });
-    pending.push(function () { drawMargin(canvas, l, ev, hs, scale, false); });
+    pending.push(function () { if (lastMark && now - lastMark.at < STEP_MS) drawStepping(canvas, l, ev, hs, scale, lastMark.at); else drawMargin(canvas, l, ev, hs, scale, false); });
     pressable(row, function () { nameRow(row); openGame(l, ev); }, function () { togglePin(l, ev); });
     if (vt && vt.l === l.key && vt.id === String(ev.id)) nameRow(row);
     return row;
@@ -1817,7 +1962,7 @@ header { view-transition-name: masthead; }
   }
   function render() {
     if (moving) { dirty = true; return; }
-    renderLeagues(); renderStatus(); renderAlertsButton(); renderPin();
+    autoPin(); renderLeagues(); renderStatus(); renderAlertsButton(); renderPin();
     var inGame = !!view;
     $("leagues").hidden = inGame; $("board").hidden = inGame; $("days").hidden = inGame;
     if (!inGame) renderDays();
@@ -1825,7 +1970,7 @@ header { view-transition-name: masthead; }
     renderDetail(false);
     var main = $("games");
     main.replaceChildren();
-    pending = [];
+    pending = []; reveal.i = 0;
     var list = [], any = false;
     LEAGUES.forEach(function (l, li) {
       if (l.race || (prefs.league !== "all" && prefs.league !== l.key)) return;
@@ -1907,14 +2052,16 @@ header { view-transition-name: masthead; }
   function flushDraws() { cancelAnimationFrame(drawFrame); drawFrame = 0; var q = drawQueue; drawQueue = []; q.forEach(function (f) { f(); }); }
   function routeNow() {
     var m = /^#game-([a-z0-9]+)-([A-Za-z0-9]+)$/.exec(location.hash || ""), pm = /^#player-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
-    var tmm = /^#team-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
+    var tmm = /^#team-([a-z0-9]+)-(\d+)$/.exec(location.hash || ""), sm = /^#standings-([a-z0-9]+)$/.exec(location.hash || "");
     var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : pm && BY_KEY[pm[1]] ? { l: BY_KEY[pm[1]], id: pm[2], player: true }
-      : tmm && BY_KEY[tmm[1]] ? { l: BY_KEY[tmm[1]], id: tmm[2], team: true } : null, was = view;
-    vt = next && !next.player && !next.team ? { l: next.l.key, id: String(next.id) } : !next && was && !was.player && !was.team ? { l: was.l.key, id: String(was.id) } : null;
+      : tmm && BY_KEY[tmm[1]] ? { l: BY_KEY[tmm[1]], id: tmm[2], team: true } : sm && BY_KEY[sm[1]] ? { l: BY_KEY[sm[1]], id: "standings", stand: true } : null, was = view;
+    var isGame = function (v) { return v && !v.player && !v.team && !v.stand; };
+    vt = isGame(next) ? { l: next.l.key, id: String(next.id) } : !next && isGame(was) ? { l: was.l.key, id: String(was.id) } : null;
     view = next;
     clearTimeout(boxTimer);
     if (view && view.player) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadPlayer(); render(); return; }
     if (view && view.team) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadTeam(); render(); return; }
+    if (view && view.stand) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadStand(); render(); return; }
     if (view) {
       var key = view.l.key + ":" + view.id;
       if (box.key !== key) box = { key: key, data: null, error: "", at: 0, loading: false };
@@ -1928,7 +2075,7 @@ header { view-transition-name: masthead; }
   }
   function findEvent(l, id) { return ((data[l.key] || {}).events || []).filter(function (e) { return String(e.id) === String(id); })[0] || null; }
   async function loadBox() {
-    if (!view || view.player || view.team) return;
+    if (!view || view.player || view.team || view.stand) return;
     var l = view.l, id = view.id, key = l.key + ":" + id, ev = findEvent(l, id);
     clearTimeout(boxTimer);
     if (l.race) { renderDetail(true); return; }
@@ -2208,36 +2355,72 @@ header { view-transition-name: masthead; }
     return h("figure", { class: "stripf" }, [c, h("figcaption", { text: "The season, one bar a game: wins above the line in the team's colour, losses below in grey, each as long as its margin (longest " + hi + "). Ticks are games to come. " +
       w + " won, " + lo + " lost" + (d ? ", " + d + " drawn" : "") + "; " + (diff > 0 ? "+" : "") + diff + " overall." })]);
   }
+  function standTable(l, name, entries, meId) {
+    var stat = function (en, k) { return (en.stats || []).filter(function (q) { return q.name === k || q.type === k; })[0] || null; };
+    var soccer = l.sport === "soccer";
+    var rows = entries.map(function (en) {
+      var pts = stat(en, "points"), pct = stat(en, "winPercent"), ov = stat(en, "overall") || stat(en, "total"), w = stat(en, "wins"), lo = stat(en, "losses"), ti = stat(en, "ties") || stat(en, "otLosses");
+      var dif = stat(en, "pointDifferential") || stat(en, "differential");
+      var rec = ov && ov.displayValue ? ov.displayValue : [w, lo, ti].filter(Boolean).map(function (x) { return x.displayValue; }).join("-");
+      return { en: en, sort: soccer ? (pts ? pts.value : 0) : (pct ? pct.value : 0), rec: dash(rec), key: soccer ? (pts ? pts.displayValue : "") : (pct ? pct.displayValue : ""), dif: dif ? dif.displayValue : "" };
+    }).sort(function (a, b) { return b.sort - a.sort; });
+    return h("section", { class: "tbox" }, [h("h3", { text: name }), h("div", { class: "scroll" }, [h("table", { class: "stats tstand" }, [
+      h("thead", null, [h("tr", null, [h("th", { class: "pl", scope: "col", text: "" }), h("th", { scope: "col", text: "Record" }), h("th", { scope: "col", text: soccer ? "Pts" : "Pct" }), h("th", { scope: "col", text: "Diff" })])]),
+      h("tbody", null, rows.map(function (r) {
+        var tid = (r.en.team || {}).id, me = meId != null && String(tid) === String(meId), fav = isFav(l, tid);
+        var nm = (r.en.team || {}).displayName || (r.en.team || {}).abbreviation || "";
+        return h("tr", { class: me ? "me" : null }, [h("td", { class: "pl" }, [me ? nm : teamLink(l, tid, document.createTextNode(nm)), fav ? h("span", { class: "fv", title: "Favourite", text: " ★" }) : null]),
+          h("td", { text: r.rec }), h("td", { class: me ? "lead" : null, text: r.key }), h("td", { text: r.dif })]);
+      }))])])]);
+  }
+  // A league's standings, every conference or division ESPN groups it by.
+  var sd = { key: "" };
+  async function loadStand() {
+    var l = view.l, key = l.key;
+    if (sd.key === key && (sd.loading || sd.at > Date.now() - 300e3)) return;
+    sd = { key: key, loading: true };
+    var path = l.paths[0].split("?")[0], g = /groups=(\d+)/.exec(l.paths[0]);
+    try {
+      var d = await getJSON("https://site.api.espn.com/apis/v2/sports/" + path + "/standings" + (g ? "?group=" + g[1] : ""));
+      var out = [];
+      (function walk(n) { if (n.standings && n.standings.entries && n.standings.entries.length) out.push({ name: n.name || "", entries: n.standings.entries }); (n.children || []).forEach(walk); })(d);
+      if (sd.key !== key) return;
+      sd.groups = out; sd.title = d.name || "";
+    } catch (e) { if (sd.key !== key) return; sd.err = "Couldn't load the standings."; }
+    sd.loading = false; sd.at = Date.now();
+    renderDetail(true);
+  }
+  function renderStand(d) {
+    var l = view.l, back = h("button", { class: "back", type: "button", text: "← Back", onclick: function () { location.hash = backTo && backTo !== location.hash ? backTo : ""; } });
+    var head = h("div", { class: "thead" }, [h("h2", { class: "pn", text: (l.title || l.label) + " standings" }),
+      h("p", { class: "pmeta", text: "Tap a team for its page. Hold a league's name above the scores to come back here." })]);
+    if (sd.key !== l.key || (sd.loading && !sd.groups)) { d.replaceChildren(back, head, h("p", { class: "dnote", text: "Loading standings…" })); return; }
+    if (!sd.groups || !sd.groups.length) { d.replaceChildren(back, head, h("p", { class: "dnote err", text: sd.err || "No standings for this league right now." })); return; }
+    d.replaceChildren.apply(d, [back, head].concat(sd.groups.map(function (g) { return standTable(l, g.name, g.entries, null); })));
+  }
   function renderTeam(d) {
     var l = view.l, back = h("button", { class: "back", type: "button", text: "← Back", onclick: function () { location.hash = backTo && backTo !== location.hash ? backTo : ""; } });
     if (tm.key !== l.key + ":" + view.id || (tm.loading && !tm.team)) { d.replaceChildren(back, h("p", { class: "dnote", text: "Loading team…" })); return; }
     if (!tm.team) { d.replaceChildren(back, h("p", { class: "dnote err", text: tm.err || "Couldn't load this team." })); return; }
     var t = tm.team, bg = rgbOf(pal().bg) || [255, 255, 248], rgb = rgbOf(t.color ? "#" + String(t.color).replace("#", "") : ""), col = rgb ? css(readable(rgb, bg)) : pal().ink;
     var meta = [t.recordSummary ? dash(t.recordSummary) : null, t.standingSummary].filter(Boolean);
+    var fk = favKey(l.key, view.id), fav = !!(prefs.favs || {})[fk];
+    var favBtn = h("button", { class: "link fav-btn", type: "button", "aria-pressed": String(fav),
+      title: fav ? "Favourite: its games go to the top on game days" : "Make this a favourite: its games go to the top on game days",
+      text: (fav ? "★ Favourite" : "☆ Make favourite"),
+      onclick: function () {
+        prefs.favs = prefs.favs || {};
+        if (prefs.favs[fk]) delete prefs.favs[fk]; else prefs.favs[fk] = { l: l.key, id: String(view.id), name: t.displayName || "", abbr: t.abbreviation || "" };
+        savePrefs(); haptic(true);
+        flashNote(prefs.favs[fk] ? (t.displayName || "Team") + " is a favourite. On days they play, their game goes to the top by itself." : "No longer a favourite.");
+        render();
+      } });
     var kids = [back, h("div", { class: "thead" }, [h("h2", { class: "pn", style: "color:" + col, text: t.displayName || "" }),
-      h("p", { class: "pmeta", text: [l.title || l.label].concat(meta).join(" · ") })])];
+      h("p", { class: "pmeta", text: [l.title || l.label].concat(meta).join(" · ") }), favBtn])];
     var games = tm.games || [];
     if (games.length) kids.push(h("section", { class: "tbox" }, [h("h3", { text: "This season" }), seasonStrip(games, col)]));
     // standings
-    var st = tm.stand;
-    if (st && st.entries.length) {
-      var stat = function (en, k) { var x = (en.stats || []).filter(function (q) { return q.name === k || q.type === k; })[0]; return x ? x : null; };
-      var soccer = l.sport === "soccer";
-      var rows = st.entries.map(function (en) {
-        var pts = stat(en, "points"), pct = stat(en, "winPercent"), ov = stat(en, "overall") || stat(en, "total"), w = stat(en, "wins"), lo = stat(en, "losses"), ti = stat(en, "ties") || stat(en, "otLosses");
-        var dif = stat(en, "pointDifferential") || stat(en, "differential");
-        var rec = ov && ov.displayValue ? ov.displayValue : [w, lo, ti].filter(Boolean).map(function (x) { return x.displayValue; }).join("-");
-        return { en: en, sort: soccer ? (pts ? pts.value : 0) : (pct ? pct.value : 0), rec: dash(rec), key: soccer ? (pts ? pts.displayValue : "") : (pct ? pct.displayValue : ""), dif: dif ? dif.displayValue : "" };
-      }).sort(function (a, b) { return b.sort - a.sort; });
-      kids.push(h("section", { class: "tbox" }, [h("h3", { text: st.name || "Standings" }), h("div", { class: "scroll" }, [h("table", { class: "stats tstand" }, [
-        h("thead", null, [h("tr", null, [h("th", { class: "pl", scope: "col", text: "" }), h("th", { scope: "col", text: "Record" }), h("th", { scope: "col", text: soccer ? "Pts" : "Pct" }), h("th", { scope: "col", text: "Diff" })])]),
-        h("tbody", null, rows.map(function (r) {
-          var me = String((r.en.team || {}).id) === String(view.id);
-          var nm = (r.en.team || {}).displayName || (r.en.team || {}).abbreviation || "";
-          return h("tr", { class: me ? "me" : null }, [h("td", { class: "pl" }, [me ? nm : teamLink(l, (r.en.team || {}).id, document.createTextNode(nm))]),
-            h("td", { text: r.rec }), h("td", { class: me ? "lead" : null, text: r.key }), h("td", { text: r.dif })]);
-        }))])])]));
-    }
+    if (tm.stand && tm.stand.entries.length) kids.push(standTable(l, tm.stand.name || "Standings", tm.stand.entries, view.id));
     // leaders from the last game played
     var last = games.filter(function (g) { return g.state === "post"; }).pop();
     if (last && last.leaders.length) {
@@ -2305,6 +2488,7 @@ header { view-transition-name: masthead; }
     d.hidden = false;
     if (view.player) { renderPlayer(d); return; }
     if (view.team) { renderTeam(d); return; }
+    if (view.stand) { renderStand(d); return; }
     var l = view.l, ev = findEvent(l, view.id);
     if (l.race) { renderRace(d, l, ev); return; }
     var bx = box.data;
@@ -2374,7 +2558,7 @@ header { view-transition-name: masthead; }
   // ---- App setup ---------------------------------------------------------
   pressable($("pin"), function (e) { var p = prefs.pin, l = p && BY_KEY[p.l]; if (!l) return; var ab = e && e.target && e.target.closest && e.target.closest(".ab[data-team]");
     if (ab) { backTo = location.hash; location.hash = "team-" + l.key + "-" + ab.getAttribute("data-team"); } else openGame(l, { id: p.id }); },
-    function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
+    function () { unpin(); });
   $("sound").addEventListener("click", function () {
     prefs.sound = !prefs.sound; savePrefs();
     if (prefs.sound && !audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
@@ -2460,9 +2644,121 @@ header { view-transition-name: masthead; }
     checkStick();
   });
   addEventListener("hashchange", function () { setTimeout(checkStick, 50); });
+  // ---- Find a team -----------------------------------------------------
+  // Every team in every league, from teams.json (built weekly beside the
+  // app, since ESPN's team lists can't be read from a page). Pull down from
+  // the top, tap Find, or press / to search; a result opens the team.
+  var teamsIdx = null, teamsLoading = null;
+  function loadTeams() {
+    if (teamsIdx || teamsLoading) return teamsLoading;
+    teamsLoading = fetch("teams.json", { cache: "no-cache" }).then(function (r) { return r.json(); })
+      .then(function (a) { teamsIdx = a.filter(function (t) { return BY_KEY[t[0]]; }).map(function (t) {
+        return { l: t[0], id: t[1], ab: t[2], name: t[3], short: t[4], color: t[5], q: (t[2] + " " + t[3] + " " + t[4]).toLowerCase() }; }); runFind(); })
+      .catch(function () { $("findh").textContent = "Couldn't load the team list."; });
+    return teamsLoading;
+  }
+  var findSel = 0, findHits = [];
+  function runFind() {
+    var q = $("findq").value.trim().toLowerCase(), ul = $("findr"), hint = $("findh");
+    if (!teamsIdx) { ul.replaceChildren(); hint.textContent = "Loading teams…"; return; }
+    var favs = prefs.favs || {};
+    if (!q) {
+      findHits = Object.keys(favs).map(function (k) { var f = favs[k]; return teamsIdx.filter(function (t) { return t.l === f.l && String(t.id) === String(f.id); })[0]; }).filter(Boolean);
+      hint.textContent = findHits.length ? "Your favourites. Type to find any team." : "Type a team, city or abbreviation: Lions, Detroit, DET.";
+    } else {
+      var order = {}; LEAGUES.forEach(function (l, i) { order[l.key] = i; });
+      findHits = teamsIdx.map(function (t) {
+        var sc = t.ab.toLowerCase() === q ? 0 : t.short.toLowerCase().indexOf(q) === 0 ? 1 : t.name.toLowerCase().indexOf(q) === 0 ? 2
+          : (" " + t.q).indexOf(" " + q) >= 0 ? 3 : t.q.indexOf(q) >= 0 ? 4 : 9;
+        return { t: t, sc: sc + (favs[t.l + ":" + t.id] ? -0.5 : 0) };
+      }).filter(function (x) { return x.sc < 9; }).sort(function (a, b) { return a.sc - b.sc || order[a.t.l] - order[b.t.l] || a.t.name.localeCompare(b.t.name); })
+        .slice(0, 24).map(function (x) { return x.t; });
+      hint.textContent = findHits.length ? "" : "No team matches “" + $("findq").value.trim() + "”.";
+    }
+    findSel = Math.min(findSel, Math.max(0, findHits.length - 1));
+    ul.replaceChildren.apply(ul, findHits.map(function (t, i) {
+      var l = BY_KEY[t.l];
+      return h("li", { class: i === findSel ? "on" : null, onclick: function () { goTeam(t); } }, [
+        h("span", { class: "sw", style: "background:" + (t.color ? "#" + t.color : "transparent") }),
+        h("span", null, [t.name, favs[t.l + ":" + t.id] ? h("span", { class: "fv", text: "★" }) : null]),
+        h("span", { class: "lg", text: l.label })]);
+    }));
+  }
+  function goTeam(t) { closeFind(); backTo = location.hash; location.hash = "team-" + t.l + "-" + t.id; }
+  function openFind() {
+    var f = $("find"); if (!f.hidden) return;
+    f.hidden = false; $("findq").value = ""; findSel = 0; runFind(); loadTeams();
+    setTimeout(function () { $("findq").focus(); }, 30);
+  }
+  function closeFind() { $("find").hidden = true; $("findq").blur(); }
+  $("findb").addEventListener("click", openFind);
+  $("findx").addEventListener("click", closeFind);
+  $("find").addEventListener("click", function (e) { if (e.target === $("find")) closeFind(); });
+  $("findq").addEventListener("input", function () { findSel = 0; runFind(); });
+  $("findq").addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeFind();
+    else if (e.key === "ArrowDown") { e.preventDefault(); findSel = Math.min(findHits.length - 1, findSel + 1); runFind(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); findSel = Math.max(0, findSel - 1); runFind(); }
+    else if (e.key === "Enter" && findHits[findSel]) goTeam(findHits[findSel]);
+  });
+  addEventListener("keydown", function (e) {
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+    if (e.key === "/" && !typing && $("find").hidden) { e.preventDefault(); openFind(); }
+    else if (e.key === "Escape" && !$("find").hidden) closeFind();
+    else if (!typing && !view && $("find").hidden && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) swipeDay(e.key === "ArrowLeft" ? -1 : 1);
+  });
+  // Pull down from the top of the page to search.
+  (function () {
+    var y0 = null, x0 = 0, hint = $("pullhint"), armed = false;
+    addEventListener("touchstart", function (e) {
+      y0 = window.scrollY <= 0 && $("find").hidden && e.touches.length === 1 && !e.target.closest(".leagues, input, .scroll") ? e.touches[0].clientY : null;
+      x0 = y0 == null ? 0 : e.touches[0].clientX; armed = false;
+    }, { passive: true });
+    addEventListener("touchmove", function (e) {
+      if (y0 == null) return;
+      var dy = e.touches[0].clientY - y0, dx = Math.abs(e.touches[0].clientX - x0);
+      if (dx > 40 || window.scrollY > 0) { y0 = null; hint.style.opacity = 0; return; }
+      var k = Math.max(0, Math.min(1, (dy - 20) / 70));
+      armed = k >= 1;
+      hint.style.opacity = k; hint.style.transform = "translate(-50%," + (-40 + 40 * k) + "px)";
+      hint.textContent = armed ? "Release to find a team" : "Pull to find a team";
+    }, { passive: true });
+    addEventListener("touchend", function () {
+      if (y0 == null) return;
+      y0 = null; hint.style.opacity = 0; hint.style.transform = "translate(-50%,-40px)";
+      if (armed) { armed = false; openFind(); }
+    }, { passive: true });
+  })();
+  // ---- Swipe between days -------------------------------------------------
+  // On the scores, a sideways swipe moves a day: left for the next, right
+  // for the one before. The page slides off the way the finger went and
+  // the new day slides in behind it.
+  function swipeDay(n) {
+    var g = $("games"), d = dayDate(); d.setDate(d.getDate() + n);
+    var rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (rm || !g.animate) { setDay(ymd(d)); return; }
+    g.animate([{ transform: "translateX(0)", opacity: 1 }, { transform: "translateX(" + (-n * 48) + "px)", opacity: 0 }], { duration: 150, easing: "ease-in" })
+      .onfinish = function () {
+        setDay(ymd(d));
+        g.animate([{ transform: "translateX(" + (n * 48) + "px)", opacity: 0 }, { transform: "translateX(0)", opacity: 1 }], { duration: 220, easing: "cubic-bezier(.2,.7,.2,1)" });
+      };
+  }
+  (function () {
+    var sx = 0, sy = 0, t0 = 0, ok = false;
+    var zone = function () { return document.querySelector(".wrap"); };
+    zone().addEventListener("touchstart", function (e) {
+      ok = !view && e.touches.length === 1 && !e.target.closest(".leagues, .scroll, input, .find, header, .pinbar");
+      if (!ok) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; t0 = Date.now();
+    }, { passive: true });
+    zone().addEventListener("touchend", function (e) {
+      if (!ok) return; ok = false;
+      var c = e.changedTouches[0], dx = c.clientX - sx, dy = c.clientY - sy;
+      if (Date.now() - t0 < 700 && Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) swipeDay(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  })();
   pressable($("pinc"), function (e) { var p = prefs.pin, l = p && BY_KEY[p.l]; if (!l) return; var ab = e && e.target && e.target.closest && e.target.closest(".ab[data-team]");
     if (ab) { backTo = location.hash; location.hash = "team-" + l.key + "-" + ab.getAttribute("data-team"); } else openGame(l, { id: p.id }); },
-    function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
+    function () { unpin(); });
   // Theme: auto follows the phone; light and dark override it on this device.
   function applyTheme() {
     var t = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : null;
