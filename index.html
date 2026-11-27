@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1946">
+<meta name="agate-version" content="2026.11.26-1954">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -77,15 +77,32 @@ header .row { display: flex; align-items: baseline; justify-content: space-betwe
 /* The canvas is taken out of layout so its pixel size never feeds back
    into the grid's width. */
 header .band, header .row { min-width: 0; }
-header .pin { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin: 8px 0 0; padding: 7px 0 1px; border-top: 1px solid rgba(255, 255, 248, 0.18);
+:is(header, .pinbar) .pin { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin: 8px 0 0; padding: 7px 0 1px; border-top: 1px solid rgba(255, 255, 248, 0.18);
   cursor: pointer; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; font-variant-numeric: lining-nums tabular-nums; }
-header .pin .side { display: inline-flex; align-items: baseline; gap: 7px; }
-header .pin .sw { width: 4px; height: 18px; align-self: center; margin: 0; }
-header .pin .ab { font-size: 18px; font-weight: 500; letter-spacing: 0.03em; }
-header .pin .n { font-size: 30px; line-height: 1; color: var(--band-gray); }
-header .pin .n.up { color: var(--band-ink); font-weight: 600; }
-header .pin .det { margin-left: auto; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
-header .pin.live .det { color: var(--band-ink); font-style: normal; }
+:is(header, .pinbar) .pin .side { display: inline-flex; align-items: baseline; gap: 7px; }
+:is(header, .pinbar) .pin .sw { width: 4px; height: 18px; align-self: center; margin: 0; }
+:is(header, .pinbar) .pin .ab { font-size: 18px; font-weight: 500; letter-spacing: 0.03em; }
+:is(header, .pinbar) .pin .n { font-size: 30px; line-height: 1; color: var(--band-gray); }
+:is(header, .pinbar) .pin .n.up { color: var(--band-ink); font-weight: 600; }
+:is(header, .pinbar) .pin .det { margin-left: auto; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
+:is(header, .pinbar) .pin.live .det { color: var(--band-ink); font-style: normal; }
+/* The pinned game, stuck to the top once its place in the masthead scrolls away.
+   It arrives looking like the masthead (score over the ticker), then the
+   ticker folds up under it, leaving one full-width bar. */
+.pinbar { position: fixed; left: 0; right: 0; top: 0; z-index: 40; background: var(--band); color: var(--band-ink);
+  padding-top: env(safe-area-inset-top, 0px); visibility: hidden; pointer-events: none; }
+@media (pointer: coarse) { .pinbar { padding-top: calc(env(safe-area-inset-top, 0px) + 28px); } }
+.stuck .pinbar { visibility: visible; pointer-events: auto; }
+.pinbar .pin { margin: 0; padding-bottom: 7px; border-top-color: transparent; }
+.pinbar .fold { display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows 380ms cubic-bezier(.3, .7, .2, 1), opacity 260ms ease-in; }
+.pinbar .fold > div { overflow: hidden; min-height: 0; }
+.pinbar .fold .rugbox { position: relative; height: 30px; margin-top: 1px; }
+.pinbar .fold canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.pinbar .fold .rcap { display: flex; justify-content: space-between; font-size: 12px; font-style: italic; color: var(--band-gray); padding: 2px 0 7px; }
+.pinbar .fold .rcap b { font-style: normal; color: var(--band-ink); font-weight: 500; }
+.pinbar.open .fold { grid-template-rows: 1fr; opacity: 1; transition: none; }
+@media (prefers-reduced-motion: reduce) { .pinbar .fold { transition: none; } }
 .status.note { color: var(--ink); }
 tr.row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 tr.row.pinned td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 6px; }
@@ -251,12 +268,12 @@ table.stats tr.bench td { color: var(--gray); font-style: italic; text-align: le
 table.stats tr.tot td { border-top: 1px solid var(--ink); font-weight: 500; }
 table.stats .r { text-align: left; }
 
-.back { justify-self: start; position: sticky; top: calc(8px + env(safe-area-inset-top, 0px)); z-index: 5;
+.back { justify-self: start; position: sticky; top: calc(8px + env(safe-area-inset-top, 0px) + var(--pinbar-h, 0px)); z-index: 5;
   background: var(--ink); color: var(--bg); font-size: 17px; padding: 8px 18px 9px; min-height: 44px; border-radius: 2px;
   box-shadow: 0 0 0 5px var(--bg); }
 .back:hover { opacity: 0.85; }
 /* On phones iOS blurs a strip below the status bar; stick the back button below it. */
-@media (pointer: coarse) { .back { top: calc(36px + env(safe-area-inset-top, 0px)); } }
+@media (pointer: coarse) { .back { top: calc(36px + env(safe-area-inset-top, 0px)); } .stuck .back { top: calc(8px + var(--pinbar-h, 0px)); } }
 .days { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 8px; }
 .days .arrow { min-width: 36px; min-height: 44px; font-size: 26px; line-height: 1; color: var(--gray); }
 .days .arrow:hover { color: var(--ink); }
@@ -352,6 +369,7 @@ header { view-transition-name: masthead; }
       <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
+<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><div class="fold"><div><div class="rugbox"><canvas id="rugc"></canvas></div><div class="rcap" id="rcapc"></div></div></div></div></div>
   <div class="banner" id="banner" hidden></div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
@@ -1463,7 +1481,7 @@ header { view-transition-name: masthead; }
   }
   function renderPin() {
     var el = $("pin");
-    if (!prefs.pin) { el.hidden = true; el.replaceChildren(); return; }
+    if (!prefs.pin) { el.hidden = true; el.replaceChildren(); if (typeof checkStick === "function") checkStick(); return; }
     var l = BY_KEY[prefs.pin.l], ev = l && findEvent(l, prefs.pin.id);
     if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail) { prefs.pin.snap = sn; savePrefs(); } }
     var p = prefs.pin.snap;
@@ -1480,6 +1498,9 @@ header { view-transition-name: masthead; }
         h("span", { class: "ab", text: p.home || "?" }), h("span", { class: "sw", style: "background:" + col(p.hc) })]),
       h("span", { class: "det", text: (p.state === "pre" ? p.detail : p.detail || (p.state === "post" ? "Final" : "")) + (ev ? "" : p.lg ? " · " + p.lg : "") }));
     el.setAttribute("aria-label", "Pinned: " + (p.away || "") + " " + (p.as || "") + ", " + (p.home || "") + " " + (p.hs || "") + ". Tap to open, hold to unpin.");
+    var pc = $("pinc"); pc.className = el.className; pc.setAttribute("aria-label", el.getAttribute("aria-label"));
+    pc.replaceChildren.apply(pc, Array.prototype.map.call(el.childNodes, function (n) { return n.cloneNode(true); }));
+    if (typeof checkStick === "function") checkStick();
   }
 
   var pending = [];
@@ -2014,20 +2035,51 @@ header { view-transition-name: masthead; }
   if (STANDALONE) document.documentElement.classList.add("standalone");
   // iOS colours the strip under the clock from the page background, so swap
   // it from masthead to paper as the masthead scrolls out from under it.
-  if (STANDALONE) (function () {
-    var queued = false;
-    function check() {
-      queued = false;
+  // On scroll: stick the pinned game to the top once its place in the
+  // masthead passes under it; and (home-screen app) turn the strip under
+  // the clock from masthead to paper once the masthead has gone.
+  var stuck = false, stickQueued = false;
+  function stickTop() { return parseFloat(getComputedStyle($("pinbar")).paddingTop) || 0; }
+  function stick(on) {
+    var root = document.documentElement, bar = $("pinbar");
+    stuck = on;
+    if (on) {
+      var r = $("pin").getBoundingClientRect(), inn = bar.firstElementChild;
+      inn.style.marginLeft = r.left + "px"; inn.style.width = r.width + "px";
+      var src = $("rug"), dst = $("rugc"), dpr = window.devicePixelRatio || 1;
+      dst.width = src.width; dst.height = src.height;
+      dst.getContext("2d").drawImage(src, 0, 0);
+      $("rcapc").innerHTML = document.querySelector("header .rcap").innerHTML;
+      bar.classList.add("open");
+      root.classList.add("stuck");
+      void bar.offsetHeight;                       // lay it out open, then let the ticker fold
+      requestAnimationFrame(function () { if (stuck) bar.classList.remove("open"); });
+      root.style.setProperty("--pinbar-h", ($("pinc").offsetHeight + stickTop()) + "px");
+    } else {
+      root.classList.remove("stuck"); bar.classList.remove("open");
+      root.style.removeProperty("--pinbar-h");
+    }
+  }
+  function checkStick() {
+    stickQueued = false;
+    var pin = $("pin"), want = false;
+    if (pin && !pin.hidden && pin.offsetParent) want = pin.getBoundingClientRect().top < stickTop() - 0.5;
+    if (want !== stuck) stick(want);
+    else if (stuck) document.documentElement.style.setProperty("--pinbar-h", ($("pinc").offsetHeight + stickTop()) + "px");
+    if (STANDALONE) {
       var band = document.querySelector("header .band");
-      var past = !!band && band.getBoundingClientRect().bottom < 4;
+      var past = !!band && band.getBoundingClientRect().bottom < 4 && !stuck;
       if (past !== document.documentElement.classList.contains("past-band")) {
         document.documentElement.classList.toggle("past-band", past);
         if (typeof applyTheme === "function") applyTheme();
       }
     }
-    addEventListener("scroll", function () { if (!queued) { queued = true; requestAnimationFrame(check); } }, { passive: true });
-    addEventListener("hashchange", function () { setTimeout(check, 50); });
-  })();
+  }
+  addEventListener("scroll", function () { if (!stickQueued) { stickQueued = true; requestAnimationFrame(checkStick); } }, { passive: true });
+  addEventListener("resize", function () { if (stuck) stick(false); checkStick(); });
+  addEventListener("hashchange", function () { setTimeout(checkStick, 50); });
+  pressable($("pinc"), function () { var p = prefs.pin, l = p && BY_KEY[p.l]; if (l) openGame(l, { id: p.id }); },
+    function () { if (prefs.pin) { prefs.pin = null; savePrefs(); render(); flashNote("Unpinned."); } });
   // Theme: auto follows the phone; light and dark override it on this device.
   function applyTheme() {
     var t = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : null;
