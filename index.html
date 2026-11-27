@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2026">
+<meta name="agate-version" content="2026.11.26-2032">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -503,7 +503,15 @@ header { view-transition-name: masthead; }
     }));
     if (errors.length && !events.length) return { error: errors[0] };
     var st = (season && season.type) || {};
-    return { events: events.map(l.race ? race : game),
+    var list = events.map(l.race ? race : game);
+    // Asked for no date, ESPN hands back its "current" day, which for a league
+    // between seasons is its last games (October's World Series) or its next.
+    // Today shows only today: live games, and games dated today on this phone.
+    if (!d && !l.race) {
+      var today = ymd(new Date());
+      list = list.filter(function (ev) { return ev.state === "in" || (ev.date && ymd(new Date(ev.date)) === today); });
+    }
+    return { events: list,
       season: season ? { off: +st.type === 4 || /off/i.test(st.name || ""), start: season.startDate, end: season.endDate } : null };
   }
   // A league is out of season when ESPN says so, or the day is outside the
