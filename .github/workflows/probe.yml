@@ -1,0 +1,26 @@
+name: probe
+on: push
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          S=https://site.api.espn.com/apis/site/v2/sports
+          W=https://site.web.api.espn.com/apis
+          for u in "$S/football/nfl/teams/8" "$S/football/nfl/teams/8/schedule" "$S/basketball/nba/teams/8/schedule" "$S/football/college-football/teams/333/schedule" "$S/soccer/eng.1/teams/359/schedule" "$W/site/v3/sports/football/nfl/teamleaders?team=8" "$S/football/nfl/teams/8/leaders" "$W/common/v3/sports/football/nfl/teams/8/statistics" "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?group=10"; do
+            echo "=================== $u"; curl -s -o /tmp/b -w "%{http_code} %{size_download}\n" -H "Origin: https://jpkosin.github.io" -D /tmp/h "$u"; grep -i 'access-control-allow-origin' /tmp/h
+            python3 - <<'PY'
+          import json
+          try: d=json.load(open('/tmp/b'))
+          except Exception as e: print("notjson", open('/tmp/b').read()[:200]); raise SystemExit
+          def sk(o,dep=0,mx=3):
+              if dep>mx: return
+              if isinstance(o,dict):
+                  for k,v in list(o.items())[:30]:
+                      t=type(v).__name__; ex=(repr(v)[:70] if not isinstance(v,(dict,list)) else (len(v) if isinstance(v,list) else ''))
+                      print('  '*dep+k,t,ex); 
+                      if isinstance(v,(dict,list)): sk(v,dep+1,mx)
+              elif isinstance(o,list) and o: sk(o[0],dep,mx)
+          sk(d)
+          PY
+          done
