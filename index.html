@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1749">
+<meta name="agate-version" content="2026.11.27-1756">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -406,6 +406,8 @@ td.sp canvas.reveal, .nsp.reveal { animation: reveal 900ms cubic-bezier(.3, .6, 
   background: var(--band); color: var(--band-ink); font-style: italic; font-size: 14px; padding: 5px 12px; border-radius: 14px; }
 /* favourite button on a team page */
 .thead .fav-btn { margin-top: 6px; }
+.dsum { font-size: 18px; margin: 10px 0 0; }
+canvas.fin { display: block; width: 100%; height: 170px; }
 .thead .fav-btn[aria-pressed="true"] { color: var(--ink); }
 :is(header, .pinbar) .pin .fstar { color: var(--band-gray); font-size: 12px; margin-right: 4px; font-style: normal; }
 .phead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
@@ -1226,7 +1228,7 @@ header { view-transition-name: masthead; }
       h("thead", null, [h("tr", null, [h("th", { scope: "col", text: "" }), h("th", { class: "r", scope: "col", text: "" }), h("th", { scope: "col", text: "PTS" }), h("th", { scope: "col", text: "GAP" })])]),
       h("tbody", null, list.slice(0, max || 99).map(function (r, i) {
         var pct = Math.max(0, Math.min(100, r.pts / top * 100)).toFixed(1);
-        return h("tr", null, [h("td", { text: String(r.rank || i + 1) }), h("td", { class: "who" + (i === 0 ? " lead" : ""), text: r.name }),
+        return h("tr", null, [h("td", { text: String(r.rank || i + 1) }), h("td", { class: "who" + (i === 0 ? " lead" : "") }, [title === "Drivers' championship" ? driverLink(r.name, null, r.name) : r.name]),
           h("td", { class: i === 0 ? "lead" : null, style: "min-width:110px;background:linear-gradient(90deg," + (r.color && rgbOf(r.color) ? alpha(css(readable(rgbOf(r.color), rgbOf(pal().bg) || [255, 255, 248])), 0.45) : alpha(pal().ink, 0.1)) + " " + pct + "%,transparent " + pct + "%)", text: String(r.pts) }),
           h("td", { class: "gap", text: i === 0 ? "" : "−" + (top - r.pts) })]);
       }))])])]);
@@ -1247,10 +1249,16 @@ header { view-transition-name: masthead; }
     try {
       var d = await getJSON(JOL + "current/last/results.json"), map = {};
       ((((d.MRData || {}).RaceTable || {}).Races || [])[0] || {}).Results.forEach(function (r) {
-        map[famKey(r.Driver.familyName)] = { team: r.Constructor.name, code: r.Driver.code };
+        map[famKey(r.Driver.familyName)] = { team: r.Constructor.name, code: r.Driver.code, id: r.Driver.driverId };
       });
       gridMap = map; render();
     } catch (e) { gridMap = {}; }
+  }
+  // A driver's name, as a link to their page when we know who they are.
+  function driverLink(label, id, name) {
+    if (!id && gridMap) { var g = gridMap[famKey(name || label)]; id = g && g.id; }
+    if (!id) return label;
+    return h("a", { class: "plink", href: "#driver-" + id, onclick: function (e) { e.stopPropagation(); backTo = location.hash; }, text: label });
   }
   async function loadJol(ev) {
     var have = jol[ev.id];
@@ -1273,7 +1281,15 @@ header { view-transition-name: masthead; }
   }
   // A constructor's colour, from ESPN's standings, matched by name and muted
   // like the team colours.
+  // Liveries by name, for teams ESPN gives no colour or a different name
+  // (Racing Bulls is "RB" to Jolpica). Checked before ESPN's list; order
+  // matters, so Racing Bulls is tried before Red Bull.
+  var F1_LIVERY = [[/racing bulls|\brb\b|alphatauri|toro rosso|visa cash/i, "#6692ff"], [/red bull/i, "#3671c6"], [/ferrari/i, "#e8002d"],
+    [/mercedes/i, "#27f4d2"], [/mclaren/i, "#ff8000"], [/aston/i, "#229971"], [/alpine/i, "#ff87bc"], [/williams/i, "#64c4ff"],
+    [/haas/i, "#b6babd"], [/audi|sauber|kick/i, "#f50537"], [/cadillac/i, "#c4a24c"]];
   function teamColor(name) {
+    var liv = F1_LIVERY.filter(function (x) { return x[0].test(name || ""); })[0];
+    if (liv) return css(readable(rgbOf(liv[1]), rgbOf(pal().bg) || [255, 255, 248]));
     var teams = (standings && standings.teams) || [], w = words(name), best = null, sc = 0;
     teams.forEach(function (t) { var n = w.filter(function (x) { return words(t.name).indexOf(x) >= 0; }).length; if (n > sc) { sc = n; best = t; } });
     var rgb = best && rgbOf(best.color);
@@ -1317,7 +1333,7 @@ header { view-transition-name: masthead; }
       var body = rich.map(function (r) {
         var team = r.Constructor && r.Constructor.name, res = isQ ? (r.Q3 || r.Q2 || r.Q1 || "") : lapStatus(r);
         return h("tr", null, [h("td", { text: r.positionText && !/^\d+$/.test(r.positionText) ? "–" : String(r.position) }),
-          h("td", { class: "r" + (r === lead ? " lead" : "") }, [swatch(team), r.Driver.givenName + " " + r.Driver.familyName]),
+          h("td", { class: "r" + (r === lead ? " lead" : "") }, [swatch(team), driverLink(r.Driver.givenName + " " + r.Driver.familyName, r.Driver.driverId)]),
           h("td", { class: "r tmn", text: team || "" }),
           h("td", { class: r === lead ? "lead" : null, text: res }),
           isQ ? null : h("td", { text: +r.points ? String(+r.points) : "" })]);
@@ -1330,7 +1346,7 @@ header { view-transition-name: masthead; }
     }
     var rows = (se.results || []).map(function (r, i) {
       var g = gridMap && gridMap[famKey(r.n)], team = (g && g.team) || r.t;
-      return h("tr", null, [h("td", { text: String(r.pos || i + 1) }), h("td", { class: "r" }, [swatch(team), r.n || r.a || "?"]), h("td", { class: "r tmn", text: team || "" })]);
+      return h("tr", null, [h("td", { text: String(r.pos || i + 1) }), h("td", { class: "r" }, [swatch(team), driverLink(r.n || r.a || "?", null, r.n)]), h("td", { class: "r tmn", text: team || "" })]);
     });
     if (!rows.length || se.state === "pre") return h("p", { class: "dnote", text: se.state === "pre" ? "Not started." : "No order yet." });
     return h("div", { class: "scroll" }, [h("table", { class: "stats f1t" }, [
@@ -2087,15 +2103,16 @@ header { view-transition-name: masthead; }
   function flushDraws() { cancelAnimationFrame(drawFrame); drawFrame = 0; var q = drawQueue; drawQueue = []; q.forEach(function (f) { f(); }); }
   function routeNow() {
     var m = /^#game-([a-z0-9]+)-([A-Za-z0-9]+)$/.exec(location.hash || ""), pm = /^#player-([a-z0-9]+)-(\d+)$/.exec(location.hash || "");
-    var tmm = /^#team-([a-z0-9]+)-(\d+)$/.exec(location.hash || ""), sm = /^#standings-([a-z0-9]+)$/.exec(location.hash || "");
+    var tmm = /^#team-([a-z0-9]+)-(\d+)$/.exec(location.hash || ""), sm = /^#standings-([a-z0-9]+)$/.exec(location.hash || ""), dm = /^#driver-([a-z0-9_]+)$/.exec(location.hash || "");
     var next = m && BY_KEY[m[1]] ? { l: BY_KEY[m[1]], id: m[2] } : pm && BY_KEY[pm[1]] ? { l: BY_KEY[pm[1]], id: pm[2], player: true }
-      : tmm && BY_KEY[tmm[1]] ? { l: BY_KEY[tmm[1]], id: tmm[2], team: true } : sm && BY_KEY[sm[1]] ? { l: BY_KEY[sm[1]], id: "standings", stand: true } : null, was = view;
+      : tmm && BY_KEY[tmm[1]] ? { l: BY_KEY[tmm[1]], id: tmm[2], team: true } : sm && BY_KEY[sm[1]] ? { l: BY_KEY[sm[1]], id: "standings", stand: true } : dm ? { l: BY_KEY.f1, id: dm[1], stand: true, driver: true } : null, was = view;
     var isGame = function (v) { return v && !v.player && !v.team && !v.stand; };
     vt = isGame(next) ? { l: next.l.key, id: String(next.id) } : !next && isGame(was) ? { l: was.l.key, id: String(was.id) } : null;
     view = next;
     clearTimeout(boxTimer);
     if (view && view.player) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadPlayer(); render(); return; }
     if (view && view.team) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadTeam(); render(); return; }
+    if (view && view.driver) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadDriver(); render(); return; }
     if (view && view.stand) { clearTimeout(mkTimer); window.scrollTo(0, 0); $("detail").replaceChildren(); loadStand(); render(); return; }
     if (view) {
       var key = view.l.key + ":" + view.id;
@@ -2425,6 +2442,78 @@ header { view-transition-name: masthead; }
     sd.loading = false; sd.at = Date.now();
     renderDetail(true);
   }
+  // ---- F1 driver pages (Jolpica) ------------------------------------------
+  var drv = { key: "" };
+  async function loadDriver() {
+    var id = view.id;
+    if (drv.key === id && (drv.loading || drv.at > Date.now() - 300e3)) return;
+    drv = { key: id, loading: true };
+    var got = await Promise.allSettled([getJSON(JOL + "current/drivers/" + id + "/results.json?limit=100"), getJSON(JOL + "current/drivers/" + id + "/driverStandings.json"),
+      getJSON(JOL + "drivers/" + id + ".json")]);
+    if (drv.key !== id) return;
+    var v = function (i) { return got[i].status === "fulfilled" ? got[i].value : null; };
+    drv.races = ((((v(0) || {}).MRData || {}).RaceTable || {}).Races || []);
+    var sl = ((((v(1) || {}).MRData || {}).StandingsTable || {}).StandingsLists || [])[0];
+    drv.stand = sl && (sl.DriverStandings || [])[0] || null;
+    drv.info = (((((v(2) || {}).MRData || {}).DriverTable || {}).Drivers) || [])[0] || (drv.races[0] && drv.races[0].Results[0].Driver) || null;
+    drv.loading = false; drv.at = Date.now();
+    if (!drv.info) drv.err = "Couldn't load this driver.";
+    renderDetail(true);
+  }
+  // The season, race by race: where they started (faint) and finished (ink),
+  // first place at the top; a retirement drops to a cross on the floor.
+  function finishFig(races, col) {
+    var c = h("canvas", { class: "fin", "aria-label": "Finishing position each race; first place at the top" });
+    var n = races.length, field = 22;
+    races.forEach(function (r) { var x = r.Results[0]; field = Math.max(field, +x.grid || 0, +x.position || 0); });
+    requestAnimationFrame(function () {
+      var sc = sizeCanvas(c); if (!sc) return;
+      var g = sc.g, W = sc.w, H = sc.h, p = pal(), padL = 26, padR = 8, padT = 8, padB = 18;
+      var X = function (i) { return padL + (n === 1 ? 0.5 : i / (n - 1)) * (W - padL - padR); }, Y = function (pos) { return padT + (pos - 1) / (field - 1) * (H - padT - padB); };
+      g.font = "12px " + SERIF; g.fillStyle = p.gray; g.textAlign = "right"; g.textBaseline = "middle";
+      [1, 10, 20].forEach(function (pp) { if (pp > field) return; g.fillText("P" + pp, padL - 6, Y(pp)); g.strokeStyle = alpha(p.rule, 0.6); g.lineWidth = 1; g.beginPath(); g.moveTo(padL, Math.round(Y(pp)) + 0.5); g.lineTo(W - padR, Math.round(Y(pp)) + 0.5); g.stroke(); });
+      var line = function (get, style, w) {
+        g.strokeStyle = style; g.lineWidth = w; g.beginPath(); var on = false;
+        races.forEach(function (r, i) { var pos = get(r.Results[0]); if (!pos) { on = false; return; } if (!on) { g.moveTo(X(i), Y(pos)); on = true; } else g.lineTo(X(i), Y(pos)); });
+        g.stroke();
+      };
+      var fin = function (x) { return /^\d+$/.test(x.positionText || "") ? +x.position : 0; };
+      line(function (x) { return +x.grid || 0; }, alpha(p.gray, 0.55), 1);
+      line(fin, col, 1.6);
+      races.forEach(function (r, i) {
+        var x = r.Results[0], pos = fin(x);
+        if (pos) { g.fillStyle = pos === 1 ? col : p.ink; g.beginPath(); g.arc(X(i), Y(pos), pos <= 3 ? 3.2 : 2.2, 0, Math.PI * 2); g.fill(); }
+        else { var cx = X(i), cy = H - padB + 8; g.strokeStyle = p.home; g.lineWidth = 1.4; g.beginPath(); g.moveTo(cx - 3, cy - 3); g.lineTo(cx + 3, cy + 3); g.moveTo(cx + 3, cy - 3); g.lineTo(cx - 3, cy + 3); g.stroke(); }
+      });
+    });
+    return h("figure", { class: "stripf" }, [c, h("figcaption", { text: "Finishing position each race, first place at the top; the faint line is where they started. A cross on the floor is a race they didn't finish." })]);
+  }
+  function renderDriver(d) {
+    var back = h("button", { class: "back", type: "button", text: "← Back", onclick: function () { location.hash = backTo && backTo !== location.hash ? backTo : ""; } });
+    if (drv.key !== view.id || (drv.loading && !drv.info)) { d.replaceChildren(back, h("p", { class: "dnote", text: "Loading driver…" })); return; }
+    if (!drv.info) { d.replaceChildren(back, h("p", { class: "dnote err", text: drv.err || "Couldn't load this driver." })); return; }
+    var a = drv.info, races = drv.races || [], st = drv.stand;
+    var team = (st && st.Constructors && st.Constructors[0] && st.Constructors[0].name) || (races.length && races[races.length - 1].Results[0].Constructor.name) || "";
+    var col = teamColor(team) || pal().ink;
+    var age = a.dateOfBirth ? Math.floor((Date.now() - Date.parse(a.dateOfBirth)) / 31557600000) : null;
+    var meta = [team.replace(/^RB F1 Team$/, "Racing Bulls"), a.nationality, age ? "age " + age : null].filter(Boolean);
+    var kids = [back, h("div", { class: "phead" }, [
+      a.permanentNumber ? h("span", { class: "jn", style: "color:" + col, text: a.permanentNumber }) : "",
+      h("div", null, [h("h2", { class: "pn", text: (a.givenName || "") + " " + (a.familyName || "") }), h("p", { class: "pmeta", text: meta.join(" · ") })])])];
+    if (st) kids.push(h("p", { class: "dsum" }, [h("b", { text: "P" + st.position }), " in the championship, " + st.points + " points" + (+st.wins ? ", " + st.wins + (+st.wins === 1 ? " win" : " wins") : "") + "."]));
+    if (races.length) {
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: "This season" }), finishFig(races, col)]));
+      var tot = 0;
+      kids.push(h("section", { class: "tbox" }, [h("h3", { text: "Race by race" }), h("div", { class: "scroll" }, [h("table", { class: "stats f1t" }, [
+        h("thead", null, [h("tr", null, [h("th", { scope: "col", text: "Rd" }), h("th", { class: "r", scope: "col", text: "Grand Prix" }), h("th", { scope: "col", text: "Grid" }), h("th", { scope: "col", text: "Finish" }), h("th", { scope: "col", text: "Pts" }), h("th", { scope: "col", text: "Total" })])]),
+        h("tbody", null, races.map(function (r) {
+          var x = r.Results[0], ok = /^\d+$/.test(x.positionText || ""); tot += +x.points || 0;
+          return h("tr", null, [h("td", { text: r.round }), h("td", { class: "r", text: (r.raceName || "").replace(/ Grand Prix$/, "") }), h("td", { text: x.grid === "0" ? "pit" : x.grid }),
+            h("td", { class: ok && +x.position <= 3 ? "lead" : null, text: ok ? "P" + x.position : x.status || "DNF" }), h("td", { text: +x.points ? String(+x.points) : "" }), h("td", { text: String(tot) })]);
+        }))])])]));
+    } else kids.push(h("p", { class: "dnote", text: "No races this season yet." }));
+    d.replaceChildren.apply(d, kids);
+  }
   function renderStand(d) {
     var l = view.l, back = h("button", { class: "back", type: "button", text: "← Back", onclick: function () { location.hash = backTo && backTo !== location.hash ? backTo : ""; } });
     var head = h("div", { class: "thead" }, [h("h2", { class: "pn", text: (l.title || l.label) + " standings" }),
@@ -2523,6 +2612,7 @@ header { view-transition-name: masthead; }
     d.hidden = false;
     if (view.player) { renderPlayer(d); return; }
     if (view.team) { renderTeam(d); return; }
+    if (view.driver) { renderDriver(d); return; }
     if (view.stand) { renderStand(d); return; }
     var l = view.l, ev = findEvent(l, view.id);
     if (l.race) { renderRace(d, l, ev); return; }
