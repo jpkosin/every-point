@@ -1,0 +1,40 @@
+name: teams
+# ESPN's team lists don't allow reading from a web page, so this builds a
+# small index of every team for the app's search and commits it beside it.
+on:
+  push:
+    paths: [".github/workflows/teams.yml"]
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build teams.json from ESPN
+        shell: python
+        run: |
+          import json, urllib.request
+          L = {"nfl":"football/nfl","nba":"basketball/nba","wnba":"basketball/wnba","mlb":"baseball/mlb","nhl":"hockey/nhl",
+               "mls":"soccer/usa.1","nwsl":"soccer/usa.nwsl","epl":"soccer/eng.1","ucl":"soccer/uefa.champions","laliga":"soccer/esp.1",
+               "bund":"soccer/ger.1","seriea":"soccer/ita.1","ligue1":"soccer/fra.1","ligamx":"soccer/mex.1",
+               "ncaaf":"football/college-football","ncaam":"basketball/mens-college-basketball","ncaaw":"basketball/womens-college-basketball",
+               "ncaah":"hockey/mens-college-hockey"}
+          out = []
+          for k, p in L.items():
+            try:
+              d = json.loads(urllib.request.urlopen("https://site.api.espn.com/apis/site/v2/sports/%s/teams?limit=1000" % p, timeout=60).read())
+              for t in d["sports"][0]["leagues"][0]["teams"]:
+                t = t["team"]
+                if t.get("isActive") is False: continue
+                out.append([k, t["id"], t.get("abbreviation",""), t.get("displayName",""), t.get("shortDisplayName",""), t.get("color","")])
+            except Exception as e:
+              print("skip", k, e)
+          json.dump(out, open("teams.json","w"), separators=(",",":"))
+          print(len(out), "teams")
+      - run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add teams.json; git diff --cached --quiet || (git commit -m "Update teams.json" && git push)
