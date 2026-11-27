@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2055">
+<meta name="agate-version" content="2026.11.26-2111">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -105,6 +105,12 @@ header .band, header .row { min-width: 0; }
 .pinbar .mini { position: absolute; display: block; pointer-events: none; transform-origin: 0 0; }
 
 .status.note { color: var(--ink); }
+/* On phones it behaves like an app: a long press never selects text or pops
+   the copy menu (holding a game pins it). Fields stay editable. */
+@media (pointer: coarse) {
+  html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
+}
 tr.row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 tr.row.pinned td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 6px; }
 header .rugbox { position: relative; height: 30px; margin-top: 8px; }
