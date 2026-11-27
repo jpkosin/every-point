@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2043">
+<meta name="agate-version" content="2026.11.26-2048">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -1533,8 +1533,9 @@ header { view-transition-name: masthead; }
   // with the last score seen, so it shows even before the scores load.
   // A tap of the phone's haptics. Android has vibrate(); iPhones have none for
   // web pages, but toggling a hidden iOS switch control gives its system tick.
-  function haptic() {
-    try { if (navigator.vibrate && navigator.vibrate(15)) return; } catch (e) {}
+  function haptic(iosOnly) {
+    if (!iosOnly) try { if (navigator.vibrate && navigator.vibrate(15)) return; } catch (e) {}
+    if (navigator.vibrate) return;
     try {
       var lb = document.getElementById("hap");
       if (!lb) {
@@ -1547,7 +1548,9 @@ header { view-transition-name: masthead; }
     } catch (e) {}
   }
   function pressable(el, onTap, onHold0) {
-    var onHold = function () { haptic(); onHold0(); };
+    // Android buzzes the moment the hold takes; iPhones only allow the tick
+    // during a real touch event, so it comes as the finger lifts.
+    var onHold = function () { try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {} onHold0(); };
     var t = null, held = false, sx = 0, sy = 0;
     el.addEventListener("pointerdown", function (e) {
       if (e.button > 0) return;
@@ -1555,6 +1558,7 @@ header { view-transition-name: masthead; }
       t = setTimeout(function () { t = null; held = true; onHold(); }, 480);
     });
     el.addEventListener("pointermove", function (e) { if (t && (Math.abs(e.clientX - sx) > 9 || Math.abs(e.clientY - sy) > 9)) { clearTimeout(t); t = null; } });
+    el.addEventListener("touchend", function () { if (held) haptic(true); });
     ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { el.addEventListener(n, function () { clearTimeout(t); t = null; }); });
     el.addEventListener("click", function (e) { if (held) { held = false; e.preventDefault(); return; } if (!e.target.closest("button, a")) onTap(e); });
     el.addEventListener("contextmenu", function (e) { e.preventDefault(); if (!held) onHold(); });
