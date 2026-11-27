@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-1954">
+<meta name="agate-version" content="2026.11.26-2004">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -87,22 +87,17 @@ header .band, header .row { min-width: 0; }
 :is(header, .pinbar) .pin .det { margin-left: auto; font-style: italic; font-size: 15px; color: var(--band-gray); white-space: nowrap; }
 :is(header, .pinbar) .pin.live .det { color: var(--band-ink); font-style: normal; }
 /* The pinned game, stuck to the top once its place in the masthead scrolls away.
-   It arrives looking like the masthead (score over the ticker), then the
-   ticker folds up under it, leaving one full-width bar. */
+   The ticker beneath it flies up to sit beside the score, so it never leaves the screen. */
 .pinbar { position: fixed; left: 0; right: 0; top: 0; z-index: 40; background: var(--band); color: var(--band-ink);
   padding-top: env(safe-area-inset-top, 0px); visibility: hidden; pointer-events: none; }
 @media (pointer: coarse) { .pinbar { padding-top: calc(env(safe-area-inset-top, 0px) + 28px); } }
 .stuck .pinbar { visibility: visible; pointer-events: auto; }
 .pinbar .pin { margin: 0; padding-bottom: 7px; border-top-color: transparent; }
-.pinbar .fold { display: grid; grid-template-rows: 0fr; opacity: 0;
-  transition: grid-template-rows 380ms cubic-bezier(.3, .7, .2, 1), opacity 260ms ease-in; }
-.pinbar .fold > div { overflow: hidden; min-height: 0; }
-.pinbar .fold .rugbox { position: relative; height: 30px; margin-top: 1px; }
-.pinbar .fold canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.pinbar .fold .rcap { display: flex; justify-content: space-between; font-size: 12px; font-style: italic; color: var(--band-gray); padding: 2px 0 7px; }
-.pinbar .fold .rcap b { font-style: normal; color: var(--band-ink); font-weight: 500; }
-.pinbar.open .fold { grid-template-rows: 1fr; opacity: 1; transition: none; }
-@media (prefers-reduced-motion: reduce) { .pinbar .fold { transition: none; } }
+.pinbar .in { position: relative; }
+/* the ticker, moved up beside the score while the bar is stuck */
+.pinbar .mini { position: absolute; display: block; pointer-events: none; transform-origin: 0 0; }
+.rug-away header .rugbox canvas { visibility: hidden; }
+.mini.fly { position: fixed; z-index: 41; visibility: visible; transform-origin: 0 0; pointer-events: none; }
 .status.note { color: var(--ink); }
 tr.row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 tr.row.pinned td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 6px; }
@@ -369,7 +364,7 @@ header { view-transition-name: masthead; }
       <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
-<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><div class="fold"><div><div class="rugbox"><canvas id="rugc"></canvas></div><div class="rcap" id="rcapc"></div></div></div></div></div>
+<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="rugm" aria-hidden="true"></canvas></div></div></div>
   <div class="banner" id="banner" hidden></div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
@@ -1264,7 +1259,12 @@ header { view-transition-name: masthead; }
 
   // The rug: one tick per score in the last 30 minutes, tall for big scores.
   function drawRug() {
-    var c = document.getElementById("rug"), s = sizeCanvas(c);
+    drawRugInto(document.getElementById("rug"), true);
+    var m = document.getElementById("rugm");
+    if (m && (stuck || m.classList.contains("fly"))) drawRugInto(m, false);
+  }
+  function drawRugInto(c, withCap) {
+    var s = sizeCanvas(c);
     if (!s) return;
     var p = pal(), g = s.g, W = s.w, H = s.h, base = H - 1.5, top = 1, now = Date.now();
     var X = function (t) { return W - 1 - ((now - t) / RUG_MS) * (W - 2); };
@@ -1276,6 +1276,7 @@ header { view-transition-name: masthead; }
       g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - hgt); g.stroke();
     });
     g.strokeStyle = p.bink; g.lineWidth = 1; g.beginPath(); g.moveTo(0, Math.round(base) + 0.5); g.lineTo(W, Math.round(base) + 0.5); g.stroke();
+    if (!withCap) return;
     var cap = document.getElementById("rug-cap");
     cap.replaceChildren(h("b", { text: String(list.length) }), list.length === 1 ? " score in the last 30 minutes" : " scores in the last 30 minutes",
       W >= 520 ? ", home in red, away in blue" : "");
@@ -2040,24 +2041,55 @@ header { view-transition-name: masthead; }
   // the clock from masthead to paper once the masthead has gone.
   var stuck = false, stickQueued = false;
   function stickTop() { return parseFloat(getComputedStyle($("pinbar")).paddingTop) || 0; }
+  var FLY_MS = 420, flying = null;
+  function relRect(r, box) { return { x: r.left - box.left, y: r.top - box.top, w: r.width, h: r.height }; }
+  // Where the ticker sits in the bar: the gap between the score and the clock.
+  function miniSlot() {
+    var pc = $("pinc"), sides = pc.querySelectorAll(".side"), det = pc.querySelector(".det");
+    if (sides.length < 2) return null;
+    var a = sides[1].getBoundingClientRect(), d = det ? det.getBoundingClientRect() : null, pr = pc.getBoundingClientRect();
+    var left = a.right + 18, right = (d && d.width ? d.left : pr.right) - 18;
+    if (right - left < 36) return null;
+    var hgt = 22, mid = a.top + a.height * 0.62;
+    return { left: left, top: mid - hgt / 2 - 3, width: right - left, height: hgt };
+  }
+  function flyTo(m, from, to, done) {
+    var rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (flying) { flying.cancel(); flying = null; }
+    if (rm || !m.animate || !from) { done && done(); return; }
+    flying = m.animate([
+      { transform: "translate(" + (from.left - to.left) + "px," + (from.top - to.top) + "px) scale(" + from.width / to.width + "," + from.height / to.height + ")" },
+      { transform: "none" }], { duration: FLY_MS, easing: "cubic-bezier(.3,.7,.2,1)" });
+    flying.onfinish = function () { flying = null; done && done(); };
+  }
   function stick(on) {
-    var root = document.documentElement, bar = $("pinbar");
+    var root = document.documentElement, bar = $("pinbar"), m = $("rugm"), rugEl = $("rug");
     stuck = on;
     if (on) {
       var r = $("pin").getBoundingClientRect(), inn = bar.firstElementChild;
       inn.style.marginLeft = r.left + "px"; inn.style.width = r.width + "px";
-      var src = $("rug"), dst = $("rugc"), dpr = window.devicePixelRatio || 1;
-      dst.width = src.width; dst.height = src.height;
-      dst.getContext("2d").drawImage(src, 0, 0);
-      $("rcapc").innerHTML = document.querySelector("header .rcap").innerHTML;
-      bar.classList.add("open");
       root.classList.add("stuck");
-      void bar.offsetHeight;                       // lay it out open, then let the ticker fold
-      requestAnimationFrame(function () { if (stuck) bar.classList.remove("open"); });
+      m.classList.remove("fly"); m.style.cssText = "";
+      var slot = miniSlot();
       root.style.setProperty("--pinbar-h", ($("pinc").offsetHeight + stickTop()) + "px");
+      if (!slot) { m.hidden = true; root.classList.remove("rug-away"); return; }
+      m.hidden = false;
+      var box = inn.getBoundingClientRect();
+      m.style.left = (slot.left - box.left) + "px"; m.style.top = (slot.top - box.top) + "px";
+      m.style.width = slot.width + "px"; m.style.height = slot.height + "px";
+      drawRugInto(m, false);
+      root.classList.add("rug-away");
+      flyTo(m, rugEl.getBoundingClientRect(), slot);
     } else {
-      root.classList.remove("stuck"); bar.classList.remove("open");
       root.style.removeProperty("--pinbar-h");
+      // Fly the ticker back down into the masthead as the bar lets go.
+      var from = !m.hidden && m.getBoundingClientRect(), to = rugEl.getBoundingClientRect();
+      root.classList.remove("stuck");
+      if (!from || !from.width || to.bottom < 0) { root.classList.remove("rug-away"); m.style.cssText = ""; return; }
+      m.classList.add("fly");
+      m.style.left = to.left + "px"; m.style.top = to.top + "px"; m.style.width = to.width + "px"; m.style.height = to.height + "px";
+      drawRugInto(m, false);
+      flyTo(m, from, to, function () { if (!stuck) { root.classList.remove("rug-away"); m.classList.remove("fly"); m.style.cssText = ""; } });
     }
   }
   function checkStick() {
