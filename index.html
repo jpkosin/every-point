@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2011">
+<meta name="agate-version" content="2026.11.26-2017">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -351,6 +351,7 @@ header { view-transition-name: masthead; }
 </head>
 <body>
 <div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div>
+<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div></div></div>
 <div class="wrap">
   <header>
     <div class="band">
@@ -366,7 +367,6 @@ header { view-transition-name: masthead; }
       <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
-<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div></div></div>
   <div class="banner" id="banner" hidden></div>
   <div class="days" id="days"></div>
   <section class="detail" id="detail" hidden></section>
