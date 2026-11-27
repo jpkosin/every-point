@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.26-2017">
+<meta name="agate-version" content="2026.11.26-2026">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -58,8 +58,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--ink); 
    beneath it, on the paper, one dateline with the controls. The band runs
    to the screen's edges and under the phone's status bar. */
 header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 16px; -webkit-app-region: drag; }
-header .band { grid-column: 1 / -1; background: var(--band); color: var(--band-ink);
-  margin: 0 calc(50% - 50vw); padding: 14px calc(50vw - 50%) 0; }
+header .band { grid-column: 1 / -1; color: var(--band-ink); position: relative; isolation: isolate; padding-top: 14px; }
+/* The band's colour runs edge to edge on a layer behind it; the band itself keeps
+   the page's width, so nothing inside depends on viewport arithmetic (which
+   iPhone home-screen apps got wrong, squeezing the masthead's right side). */
+header .band::before { content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: 50%; width: 100vw;
+  transform: translateX(-50%); background: var(--band); }
 /* iOS blurs and fades whatever a page draws under the status bar, in Safari
    and in home-screen apps alike, so nothing is drawn there. In Safari the
    paper shows under it. */
@@ -1485,7 +1489,7 @@ header { view-transition-name: masthead; }
     if (ev) { var sn = snapOf(l, ev), old = prefs.pin.snap || {}; if (sn.as !== old.as || sn.hs !== old.hs || sn.detail !== old.detail) { prefs.pin.snap = sn; savePrefs(); } }
     var p = prefs.pin.snap;
     if (!p) { el.hidden = true; return; }
-    var band = rgbOf(getComputedStyle(el.parentNode).backgroundColor) || [29, 28, 26];
+    var band = rgbOf(getComputedStyle(document.getElementById("pinbar")).backgroundColor) || [29, 28, 26];
     var col = function (hex) { var rgb = rgbOf(hex ? "#" + String(hex).replace("#", "") : ""); return rgb ? css(readable(rgb, band)) : "transparent"; };
     var a = num(p.as), hh = num(p.hs), live = p.state === "in";
     el.hidden = false;
@@ -2045,7 +2049,7 @@ header { view-transition-name: masthead; }
     if (sides.length < 2) return null;
     var a = sides[1].getBoundingClientRect(), d = det ? det.getBoundingClientRect() : null, pr = pc.getBoundingClientRect();
     var left = a.right + 16, right = (d && d.width ? d.left : pr.right) - 16;
-    if (right - left < 40) return null;
+    if (right - left < 28) return null;
     var hgt = 26, mid = a.top + a.height * 0.55;
     return { left: left, top: mid - hgt / 2, width: Math.min(right - left, 320), height: hgt };   // no wider than a list sparkline
   }
