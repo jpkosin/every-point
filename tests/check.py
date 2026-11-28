@@ -243,6 +243,11 @@ async def main():
               return [Math.round(Math.abs((h.top + h.bottom) / 2 - mid) * 10) / 10, a.alignSelf, a.marginLeft, a.marginRight, getComputedStyle(e.querySelector('.win')).maskImage || 'none'] })()""")
             check(dm[0] <= 1 and dm[1] == "center" and dm[2] == dm[3], "the diamond sits midway between the rules and between the headlines (%r)" % dm)
             check(dm[4] == "none", "the ticker doesn't fade at its edges (%r)" % dm[4])
+            # a rebuild (new headlines arriving) carries on from where the ticker was
+            jr = await pg.evaluate("""(async () => { const e = document.querySelector('#dnews'), x0 = () => e.querySelector('.run').getBoundingClientRect().left;
+              await new Promise(r => setTimeout(r, 400)); const a = x0(); window.__addHeadline('One more headline arrives');
+              const b = x0(); return [Math.round(a), Math.round(b)] })()""")
+            check(abs(jr[0] - jr[1]) <= 8, "new headlines don't jerk the ticker back to the start (%r)" % jr)
             lc = await pg.evaluate("[getComputedStyle(document.querySelector('#dnews .hl.live')).color, getComputedStyle(document.querySelector('#dnews .hl.live .kick')).color]")
             check(lc[0] == lc[1], "live lines take the grey of their Live label (%r)" % lc)
             check(hl[1] <= 40 and hl[2] <= 40, "on a phone the headlines run the full width (%r)" % hl[1:3])
@@ -268,6 +273,8 @@ async def main():
             pg, errs = await page(b, 1280, "#game-nfl-401")
             w2 = await pg.evaluate("""(() => { const out = []; for (const sd of ['away', 'home']) { const l = document.querySelector('.dteam.' + sd + ' .tlink'), r = document.createRange(); r.selectNodeContents(l.querySelector('.nm').firstChild); out.push([Math.round(l.getBoundingClientRect().width), Math.round(r.getBoundingClientRect().width)]); } return out })()""")
             check(all(abs(a - b) <= 2 for a, b in w2), "the rule under each team name is as long as the name (%r)" % w2)
+            gap = await pg.evaluate("""(() => [...document.querySelectorAll('.dteam .tlink')].map(l => { const r = document.createRange(); r.selectNodeContents(l.querySelector('.nm').firstChild); return Math.round(l.getBoundingClientRect().bottom - r.getBoundingClientRect().bottom) }))()""")
+            check(min(gap) >= 3, "team names' descenders clear the rule under them (%r px)" % gap)
             hd = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), b = document.querySelector('.detail > .back').getBoundingClientRect(), r = e.getBoundingClientRect(); return [Math.round(r.left - b.right), Math.round(Math.abs((r.top + r.bottom) / 2 - (b.top + b.bottom) / 2)), e.classList.contains('moving')] })()""")
             check(hd[0] >= 8 and hd[1] <= 6, "on a desktop the headlines run beside the back button (%r)" % hd)
             await pg.close()
