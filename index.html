@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2028">
+<meta name="agate-version" content="2026.11.27-2038">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -3051,7 +3051,8 @@ header { view-transition-name: masthead; }
       dc._redraw = function () {
         cancelAnimationFrame(dc._raf);
         var el = sinceSeen(dc); drawDrives(dc, drv2, tc, el);
-        if (el > 0 && el < drivesMs(drv2.length)) dc._raf = requestAnimationFrame(dc._redraw);
+        // keep going from the moment it's seen (el is still 0 on that first frame)
+        if (seenAt.has(dc.dataset.k) && el < drivesMs(drv2.length)) dc._raf = requestAnimationFrame(dc._redraw);
       };
       dc.dataset.k = rvKey("drives");
       schedDraw(dc._redraw); revealCanvas(dc, dc.dataset.k);
