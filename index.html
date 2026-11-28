@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.28-0954">
+<meta name="agate-version" content="2026.11.28-1353">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -1250,6 +1250,11 @@ header { view-transition-name: masthead; }
     var shift = function (n) { var x = new Date(d); x.setDate(x.getDate() + n); setDay(ymd(x)); };
     var label = isToday() ? "Today" : d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
     var iso = ymd(d).replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+    // Unchanged day: leave the row alone. Rebuilding it on every score
+    // closed the date picker under the user's finger.
+    var sig = label + "|" + iso;
+    if (el.dataset.sig === sig && el.childNodes.length) return;
+    el.dataset.sig = sig;
     el.replaceChildren(
       h("button", { class: "arrow", type: "button", "aria-label": "Previous day", text: "‹", onclick: function () { swipeDay(-1); } }),
       h("span", { class: "lbl", text: label }),
