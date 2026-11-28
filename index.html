@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.28-0947">
+<meta name="agate-version" content="2026.11.28-0954">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -2552,11 +2552,12 @@ header { view-transition-name: masthead; }
     // charts are drawn at once rather than on the next frame.
     // Redraws that arrive while it plays (scores, the box score loading)
     // wait until it ends, so the browser never sees the page change mid-move.
-    var t = document.startViewTransition(function () { routeNow(); flushDraws(); moving = true; });
+    var t = document.startViewTransition(function () { inVT = true; try { routeNow(); flushDraws(); } finally { inVT = false; } moving = true; });
     t.finished.then(settle, settle);
   }
-  var moving = false, dirty = false;
-  function settle() { moving = false; if (dirty) { dirty = false; render(); } }
+  var moving = false, dirty = false, inVT = false;   // inVT: building the page the transition will show
+  var afterMove = [];
+  function settle() { moving = false; var q = afterMove; afterMove = []; q.forEach(function (f) { f(); }); if (dirty) { dirty = false; render(); } }
   var drawQueue = [], drawFrame = 0;
   function schedDraw(fn) { drawQueue.push(fn); if (!drawFrame) drawFrame = requestAnimationFrame(flushDraws); }
   function flushDraws() { cancelAnimationFrame(drawFrame); drawFrame = 0; var q = drawQueue; drawQueue = []; q.forEach(function (f) { f(); }); }
@@ -3220,8 +3221,17 @@ header { view-transition-name: masthead; }
         return;
       }
     }
-    if (!el.childNodes.length) whenNewsFont(function () { var e2 = $("dnews"); if (e2 && newsKey === key && !e2.childNodes.length) buildNews(e2, lastNews); });
-    else buildNews(el, list);
+    if (el.childNodes.length) { buildNews(el, list); return; }
+    // The typeface already here (the usual case): build now, so the band is
+    // in the page the moment the game opens and moves with the opening
+    // transition. Otherwise wait for it, and for any transition to finish:
+    // a change made underneath a transition stays hidden until its end and
+    // then pops.
+    if (newsFontReady()) { buildNews(el, list, moving || inVT); return; }
+    whenNewsFont(function later() {
+      if (moving || inVT) { afterMove.push(later); return; }
+      var e2 = $("dnews"); if (e2 && newsKey === key && !e2.childNodes.length) buildNews(e2, lastNews);
+    });
   }
   // The ticker runs on a script-driven animation measured in pixels, so a
   // rebuild or a changed live line carries on from exactly where the text
@@ -3239,8 +3249,8 @@ header { view-transition-name: masthead; }
     a.currentTime = ((startPx % w) + w) % w / TICK_PX_S * 1000;
     track._anim = a;
   }
-  function buildNews(el, list) {
-    var from = el.classList.contains("moving") ? tickerOffset(el) : 0, fresh = !el.childNodes.length;
+  function buildNews(el, list, quiet) {
+    var from = el.classList.contains("moving") ? tickerOffset(el) : 0, fresh = !el.childNodes.length && !quiet;
     if (!list.length) { el.replaceChildren(); el.classList.remove("moving"); return; }
     function run() {
       return h("div", { class: "run" }, list.map(function (x) {
@@ -3268,6 +3278,14 @@ header { view-transition-name: masthead; }
     // hold to read: the ticker pauses under a finger
     el.onpointerdown = function () { if (track._anim) track._anim.pause(); };
     el.onpointerup = el.onpointercancel = el.onpointerleave = function () { if (track._anim && track._anim.playState === "paused") track._anim.play(); };
+  }
+  // Ready when the face has loaded, or has failed for good (then the
+  // fallback is all there will be, and waiting gains nothing).
+  function newsFontReady() {
+    if (!document.fonts || !document.fonts.check) return true;
+    if (document.fonts.check('560 21px "Source Serif 4"')) return true;
+    var faces = []; document.fonts.forEach(function (f) { if (/Source Serif/.test(f.family)) faces.push(f.status); });
+    return faces.length > 0 && faces.every(function (st) { return st === "error"; });
   }
   var newsFont = null;
   function whenNewsFont(fn) {
