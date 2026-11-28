@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.28-0907">
+<meta name="agate-version" content="2026.11.28-0947">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -288,9 +288,8 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dnews:empty { display: none; }
 .dpress canvas { display: block; width: 100%; height: 190px; }
 .dnews .track { display: flex; width: max-content; }
-.dnews.moving .track { animation: ticker 40s linear infinite; }
-.dnews.moving:active .track { animation-play-state: paused; }
-@keyframes ticker { to { transform: translateX(-50%); } }
+.dnews .win { animation: hl-fade 380ms ease both; }
+@keyframes hl-fade { from { opacity: 0; } }
 .dnews .run { display: flex; align-items: center; white-space: nowrap; }
 .dnews .hl { font-family: var(--data); font-weight: 560; font-size: 21px; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink);
   font-variation-settings: "opsz" 48; display: inline-flex; align-items: baseline; }
@@ -381,7 +380,7 @@ table.stats .r { text-align: left; }
 .days .arrow:hover { color: var(--ink); }
 .days .lbl { font-size: 21px; }
 .days .arrow:first-child { margin-left: -10px; }
-.days input { font: inherit; font-size: 16px; color: var(--gray); background: transparent; border: 1px solid var(--rule); padding: 3px 6px; min-height: 34px; margin-left: 10px; }
+.days input { font: inherit; font-size: 16px; color: var(--gray); background: transparent; border: 0; border-radius: 0; -webkit-appearance: none; appearance: none; padding: 3px 0; min-height: 34px; margin-left: 10px; }
 .markets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: 760px; }
 .mk h2 { font-style: normal; font-size: 22px; }
 .mk .ev { margin: 8px 0 2px; font-size: 16px; }
@@ -3215,20 +3214,33 @@ header { view-transition-name: masthead; }
       var runs = el.querySelectorAll(".run"), old = runs[0] ? runs[0].children : [];
       var same = old.length === list.length && list.every(function (x, i) { return x.live ? old[i].classList.contains("live") : old[i].textContent.indexOf(x.t) >= 0; });
       if (same) {
+        var at = tickerOffset(el), tr = el.querySelector(".track");
         runs.forEach(function (r) { list.forEach(function (x, i) { if (x.live) r.children[i].lastChild.textContent = x.t; }); });
+        if (tr) runTicker(el, tr, at);
         return;
       }
     }
-    buildNews(el, list);
+    if (!el.childNodes.length) whenNewsFont(function () { var e2 = $("dnews"); if (e2 && newsKey === key && !e2.childNodes.length) buildNews(e2, lastNews); });
+    else buildNews(el, list);
   }
-  // Built and measured in one go (no frame in between), and a rebuild
-  // carries on from the same spot: the speed is fixed, so the distance
-  // already travelled maps straight onto the new lap.
+  // The ticker runs on a script-driven animation measured in pixels, so a
+  // rebuild or a changed live line carries on from exactly where the text
+  // was. It waits for the headline face to load, so the words never start
+  // in a fallback font and then jump to their real width.
   var TICK_PX_S = 55;
+  function tickerOffset(el) {
+    var t = el.querySelector(".track"); if (!t) return 0;
+    var m = new DOMMatrixReadOnly(getComputedStyle(t).transform); return -m.m41 || 0;
+  }
+  function runTicker(el, track, startPx) {
+    var w = track.firstChild.getBoundingClientRect().width;
+    if (track._anim) track._anim.cancel();
+    var a = track.animate([{ transform: "translateX(0)" }, { transform: "translateX(" + (-w) + "px)" }], { duration: w / TICK_PX_S * 1000, iterations: Infinity });
+    a.currentTime = ((startPx % w) + w) % w / TICK_PX_S * 1000;
+    track._anim = a;
+  }
   function buildNews(el, list) {
-    var old = el.querySelector(".track"), anim = old && old.getAnimations ? old.getAnimations()[0] : null;
-    var ct = anim && anim.effect ? anim.effect.getComputedTiming() : null;
-    var travelled = ct && ct.progress != null ? ((ct.currentIteration || 0) + ct.progress) * old.firstChild.scrollWidth : 0;
+    var from = el.classList.contains("moving") ? tickerOffset(el) : 0, fresh = !el.childNodes.length;
     if (!list.length) { el.replaceChildren(); el.classList.remove("moving"); return; }
     function run() {
       return h("div", { class: "run" }, list.map(function (x) {
@@ -3237,18 +3249,32 @@ header { view-transition-name: masthead; }
         return h("span", { class: "hl" + (x.recap ? " recap" : "") + (x.live ? " live" : "") }, [kick ? h("span", { class: "kick", text: kick }) : "", t]);
       }));
     }
-    var track = h("div", { class: "track" }, [run()]);
+    var track = h("div", { class: "track" }, [run()]), win = h("div", { class: "win" }, [track]);
+    if (!fresh) win.style.animation = "none";   // only the first appearance fades
     el.classList.remove("moving");
-    el.replaceChildren(h("div", { class: "win" }, [track]));
+    el.replaceChildren(win);
     var w = track.firstChild.scrollWidth;   // forces layout now, before anything is painted
-    if (w <= el.clientWidth || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (fresh && el.animate && !reduceMotion) {   // the band opens, the page below eases down
+      var hh = el.getBoundingClientRect().height;
+      el.style.overflow = "hidden"; el.style.boxSizing = "border-box";
+      el.animate([{ height: "0px", paddingTop: "0px", paddingBottom: "0px", borderTopWidth: "0px", borderBottomWidth: "0px" }, { height: hh + "px" }], { duration: 420, easing: "cubic-bezier(.3, .6, .2, 1)" })
+        .onfinish = function () { el.style.overflow = ""; el.style.boxSizing = ""; };
+    }
+    if (w <= el.clientWidth || matchMedia("(prefers-reduced-motion: reduce)").matches || !track.animate) return;
     var copy = run(); copy.setAttribute("aria-hidden", "true"); copy.querySelectorAll("a").forEach(function (a) { a.tabIndex = -1; });
     track.append(copy);
-    var dur = w / TICK_PX_S;
-    track.style.animationDuration = dur.toFixed(2) + "s";
-    track.style.animationDelay = (-(travelled % w) / TICK_PX_S).toFixed(2) + "s";   // pick up where the last lap was
     el.classList.add("moving");
+    runTicker(el, track, from);
+    // hold to read: the ticker pauses under a finger
+    el.onpointerdown = function () { if (track._anim) track._anim.pause(); };
+    el.onpointerup = el.onpointercancel = el.onpointerleave = function () { if (track._anim && track._anim.playState === "paused") track._anim.play(); };
   }
+  var newsFont = null;
+  function whenNewsFont(fn) {
+    if (!newsFont) newsFont = document.fonts && document.fonts.load ? Promise.race([document.fonts.load('560 21px "Source Serif 4"'), new Promise(function (r) { setTimeout(r, 2500); })]).catch(function () {}) : Promise.resolve();
+    newsFont.then(fn);
+  }
+
 
   var sel = { key: "", i: -1 };
   // The scoring plays, newest last, as the game read: when, who, what, the

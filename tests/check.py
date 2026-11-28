@@ -252,6 +252,8 @@ async def main():
             jr = await pg.evaluate("""(async () => { const e = document.querySelector('#dnews'), x0 = () => e.querySelector('.run').getBoundingClientRect().left;
               await new Promise(r => setTimeout(r, 400)); const a = x0(); window.__addHeadline('One more headline arrives');
               const b = x0(); return [Math.round(a), Math.round(b)] })()""")
+            mv = await pg.evaluate("""(async () => { const x = () => document.querySelector('#dnews .run').getBoundingClientRect().left; const a = x(); await new Promise(r => setTimeout(r, 600)); return [Math.round(a), Math.round(x())] })()""")
+            check(15 <= mv[0] - mv[1] <= 60, "the ticker runs steadily, about 55px a second (%r)" % mv)
             check(abs(jr[0] - jr[1]) <= 8, "new headlines don't jerk the ticker back to the start (%r)" % jr)
             lc = await pg.evaluate("[getComputedStyle(document.querySelector('#dnews .hl.live')).color, getComputedStyle(document.querySelector('#dnews .hl.live .kick')).color]")
             check(lc[0] == lc[1], "live lines take the grey of their Live label (%r)" % lc)
