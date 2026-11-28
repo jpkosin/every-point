@@ -1,0 +1,24 @@
+name: probe
+on: push
+jobs:
+  p:
+    if: github.ref == 'refs/heads/probe'
+    runs-on: ubuntu-latest
+    steps:
+      - shell: python
+        run: |
+          import json, urllib.request, collections
+          get = lambda u: json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
+          S = "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/"
+          sb = get(S + "scoreboard"); ev = [e for e in sb["events"] if e["status"]["type"]["state"] in ("post", "in")]
+          e = ev[0]; print("GAME", e["name"], json.dumps(e["status"])[:300])
+          d = get(S + "summary?event=" + e["id"])
+          known = {"Face Off", "Stoppage", "Shot", "Hit", "Blocked", "Giveaway", "Missed", "Goal", "Takeaway", "Period Start", "Period End", "End of Game"}
+          pl = d["plays"]
+          for p in [p for p in pl if (p.get("type") or {}).get("text") not in known][:6]: print("PEN", json.dumps(p)[:700])
+          print("PLAYKEYS", sorted(set(k for p in pl for k in p)))
+          for p in [p for p in pl if (p.get("type") or {}).get("text") in ("Blocked", "Goal")][:4]: print("BG", json.dumps({k: p.get(k) for k in ("type", "text", "team", "strength", "clock", "period", "participants")})[:600])
+          print("HDR", [(c["homeAway"], c["team"]["id"], c["team"].get("name")) for c in d["header"]["competitions"][0]["competitors"]])
+          t = d["header"]["competitions"][0]["competitors"][0]["team"]["id"]
+          n = get(S + "news?team=" + t + "&limit=5"); print("TEAMNEWS", t, [a.get("headline") for a in n.get("articles", [])])
+          n2 = get(S + "news?limit=5"); print("LEAGUENEWS", [a.get("headline") for a in n2.get("articles", [])])
