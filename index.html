@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1837">
+<meta name="agate-version" content="2026.11.27-1842">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -223,6 +223,10 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 @media (max-width: 560px) {
   /* phones: the sparkline takes all the width the row has left over, rather than a fixed 64 px */
   td.sp { width: 100%; min-width: 64px; padding: 2px 6px; } td.sp canvas { width: 100%; }
+  /* Safari hands a table's spare width to every column, not to the one marked
+     100%, so the line's width is set outright: the page width less the fixed
+     columns (220 px) and a little slack. */
+  table.agate td.sp canvas { width: calc(100vw - 2 * max(4vw, 16px) - 244px); max-width: none; }
   /* fixed widths around it so every league's sparklines line up */
   /* in pixels, not ems, so nothing about the type can widen them; the
      sparkline gets everything else */
