@@ -61,3 +61,12 @@ if __name__ == "__main__":
         s2, m2 = rounded(im, 40); sheet.paste(s2, (cx + 70, cy + T + 22), m2)
         d.text((cx + 120, cy + T + 34), n, font=lab, fill=(40, 40, 38))
     sheet.save(os.path.join(OUT, "cb_sheet.png")); print("ok")
+
+def install(kind="paper", light=True):
+    """Write the chosen icon into the site: ml-180/192/512 and the favicon."""
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    im = icon(kind, light)
+    for n in (180, 192, 512): im.resize((n, n), Image.LANCZOS).save(os.path.join(root, "ml-%d.png" % n))
+    im.resize((64, 64), Image.LANCZOS).save(os.path.join(root, "ml-favicon.png"))
+
+if __name__ == "__main__" and "--install" in sys.argv: install()
