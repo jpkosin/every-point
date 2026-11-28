@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2103">
+<meta name="agate-version" content="2026.11.27-2113">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -277,6 +277,20 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 
 .detail { display: grid; gap: 16px; margin-top: 8px; }
 .detail .back { justify-self: start; }
+/* game page: the back button shares its row with the game's headlines */
+.detail:has(> .dnews) { grid-template-columns: auto minmax(0, 1fr); }
+.detail:has(> .dnews) > * { grid-column: 1 / -1; }
+.detail:has(> .dnews) > .back { grid-column: 1; grid-row: 1; }
+.detail > .dnews { grid-column: 2; grid-row: 1; align-self: center; display: grid; min-height: 44px; position: relative; }
+.dnews:empty { display: none; }
+.dnews .hl { grid-area: 1 / 1; align-self: center; margin: 0; font-style: italic; font-size: 15px; line-height: 1.25; color: var(--gray);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; animation: hl-in 600ms ease both; }
+.dnews .hl a { color: inherit; text-decoration: none; }
+.dnews .hl.recap { color: var(--ink); }
+.dnews .hl.out { animation: hl-out 500ms ease both; }
+@keyframes hl-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes hl-out { to { opacity: 0; transform: translateY(-6px); } }
+@media (min-width: 561px) { .dnews .hl { font-size: 17px; } }
 .dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 20px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
 .dteam { display: grid; min-width: 0; justify-items: start; }
 .dteam.home { text-align: right; justify-items: end; }
@@ -327,7 +341,7 @@ table.stats .pl { text-align: left; position: sticky; left: 0; background: var(-
 table.stats td.pl span { color: var(--gray); font-size: 13px; margin-left: 5px; }
 table.stats td.lead { font-weight: 600; }
 table.stats tr.dnp td { color: var(--gray); }
-table.stats tr.dnp td.why { text-align: left; font-style: italic; }
+table.stats tr.dnp td.why { text-align: left; font-style: italic; font-family: var(--serif); font-size: 0.86em; color: inherit; }
 table.stats tr.bench td { color: var(--gray); font-style: italic; text-align: left; padding-top: 8px; }
 table.stats tr.tot td { border-top: 1px solid var(--ink); font-weight: 500; }
 table.stats .r { text-align: left; }
@@ -528,8 +542,8 @@ header { view-transition-name: masthead; }
 </style>
 </head>
 <body>
-<div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div>
-<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i></div></div></div>
+<div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i><i data-k="bgray" style="color:var(--band-gray)"></i></div>
+<div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i><i data-k="bgray" style="color:var(--band-gray)"></i></div></div></div>
 <div class="wrap">
   <header>
     <div class="band">
@@ -796,7 +810,21 @@ header { view-transition-name: masthead; }
       });
     }
     var st = ((comp.status || {}).type || {});
-    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb };
+    // Headlines for this game: ESPN's recap once there is one, then the
+    // league's news that names either team. Highlight clips are left out.
+    var nick = (comp.competitors || []).map(function (c) { var t = c.team || {}; return t.name || t.shortDisplayName; }).filter(Boolean);
+    var nre = nick.length ? new RegExp("\\b(" + nick.map(function (x) { return x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }).join("|") + ")\\b", "i") : null;
+    var news = [], seenH = {};
+    function addNews(a, recap) {
+      if (!a || !a.headline || seenH[a.headline]) return;
+      seenH[a.headline] = 1;
+      news.push({ t: a.headline, href: ((a.links || {}).web || {}).href || null, recap: recap, at: Date.parse(a.published || a.lastModified || "") || 0 });
+    }
+    var arts = ((d.news || {}).articles || []).filter(function (a) { return a.type !== "Media" && nre && nre.test((a.headline || "") + " " + (a.description || "")); });
+    arts.filter(function (a) { return a.type === "Recap"; }).forEach(function (a) { addNews(a, true); });
+    if (d.article && d.article.headline) addNews(d.article, true);
+    arts.sort(function (x, y) { return Date.parse(y.published || 0) - Date.parse(x.published || 0); }).forEach(function (a) { addNews(a, false); });
+    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb, news: news.slice(0, 5) };
   }
 
   // ---- Preferences (this viewer only) ------------------------------------
@@ -1733,7 +1761,7 @@ header { view-transition-name: masthead; }
     var list = rugEvents.filter(function (e) { return now - e.at < RUG_MS; });
     list.forEach(function (e) {
       var x = Math.round(X(e.at)) + 0.5, hgt = (base - top) * (0.3 + 0.7 * Math.min(1, e.w));
-      g.strokeStyle = e.side === "home" ? p.bred : e.side === "away" ? p.bblue : p.bink;
+      g.strokeStyle = e.side === "home" ? p.bink : p.bgray;   // the masthead's two tones: Line, Margin
       g.lineWidth = now - e.at < 8000 ? 2.2 : 1.3;
       g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - hgt); g.stroke();
     });
@@ -1741,7 +1769,7 @@ header { view-transition-name: masthead; }
     if (!withCap) return;
     var cap = document.getElementById("rug-cap");
     cap.replaceChildren(h("b", { text: String(list.length) }), list.length === 1 ? " score in the last 30 minutes" : " scores in the last 30 minutes",
-      W >= 520 ? ", home in red, away in blue" : "");
+      W >= 520 ? ", home in cream, away in grey" : "");
   }
 
   // ---- Rendering ---------------------------------------------------------
@@ -2456,7 +2484,7 @@ header { view-transition-name: masthead; }
       var label = p.id && view ? h("a", { class: "plink", href: "#player-" + view.l.key + "-" + p.id, onclick: function () { backTo = location.hash; } , text: p.s || p.n || "?" }) : (p.s || p.n || "?");
       var name = h("td", { class: "pl", title: p.n || "" }, [label, (p.p || p.j) ? h("span", { text: [p.p, p.j ? "#" + p.j : null].filter(Boolean).join(" ") }) : null]);
       if (p.dnp || !(p.v && p.v.length)) {
-        rows.push(h("tr", { class: "dnp" }, [name, h("td", { class: "why", colspan: String(group.labels.length), text: p.r ? String(p.r) : "Did not play" })]));
+        rows.push(h("tr", { class: "dnp" }, [name, h("td", { class: "why", colspan: String(group.labels.length), text: p.r ? String(p.r).charAt(0).toUpperCase() + String(p.r).slice(1).toLowerCase() : "Did not play" })]));
         return;
       }
       rows.push(h("tr", null, [name].concat(group.labels.map(function (lb, i) {
@@ -2933,6 +2961,27 @@ header { view-transition-name: masthead; }
         })));
     } else { he.className = ""; he.replaceChildren(); }
   }
+  // The game's headlines, beside the back button, one at a time.
+  var newsTimer = 0, newsKey = "", newsI = 0;
+  function renderNews(list) {
+    var el = $("dnews"); if (!el) return;
+    var key = list.map(function (x) { return x.t; }).join("|");
+    if (key === newsKey && el.childNodes.length) return;   // unchanged: keep cycling where it is
+    newsKey = key; newsI = 0; clearInterval(newsTimer);
+    if (!list.length) { el.replaceChildren(); return; }
+    function show(i) {
+      var x = list[i];
+      var a = x.href ? h("a", { href: x.href, target: "_blank", rel: "noopener", text: x.t }) : h("span", { text: x.t });
+      var item = h("p", { class: "hl" + (x.recap ? " recap" : "") }, [a]);
+      var old = el.querySelector(".hl:not(.out)");
+      if (old) { old.classList.add("out"); setTimeout(function () { old.remove(); }, 600); }
+      el.append(item);
+      el.dataset.n = list.length > 1 ? (i + 1) + " of " + list.length : "";
+    }
+    show(0);
+    if (list.length > 1 && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+      newsTimer = setInterval(function () { if (!document.body.contains(el)) { clearInterval(newsTimer); newsKey = ""; return; } newsI = (newsI + 1) % list.length; show(newsI); }, 7000);
+  }
   var sel = { key: "", i: -1 };
   // The scoring plays, newest last, as the game read: when, who, what, the
   // score after. Tap one to find it on the chart above; tap again to clear.
@@ -2975,7 +3024,7 @@ header { view-transition-name: masthead; }
     var bx = box.data;
     if (!$("dhead")) {
       d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { id: "dhead" }), h("div", { id: "dfouls" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "ddrives" }), h("div", { id: "dduel" }), h("div", { id: "dshots" }), h("div", { id: "dhot" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+        h("div", { class: "dnews", id: "dnews", "aria-live": "polite" }), h("div", { id: "dhead" }), h("div", { id: "dfouls" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "ddrives" }), h("div", { id: "dduel" }), h("div", { id: "dshots" }), h("div", { id: "dhot" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
       renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
@@ -2983,6 +3032,7 @@ header { view-transition-name: masthead; }
     var home = s ? s.home : bt.filter(function (t) { return t.home; })[0] || {};
     var state = (ev && ev.state) || (bx && bx.state), detail = (ev && ev.detail) || (bx && bx.detail) || "";
     var tc = ev ? teamColors(ev) : null;
+    renderNews((bx && bx.news) || []);
     var dh = $("dhead");
     dh.className = "dhead";
     dh.replaceChildren(

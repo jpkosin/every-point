@@ -35,8 +35,12 @@ def game(id, date, state, detail, c, clock=0, period=1, sit=None):
 SIT401 = {"down": 3, "distance": 7, "yardLine": 34, "possession": "3", "isRedZone": False, "downDistanceText": "3rd & 7 at DET 34", "shortDownDistanceText": "3rd & 7", "possessionText": "DET 34"}
 def DRV(id, tm, a, b, res, score=False):
     return {"id": id, "team": {"id": tm}, "start": {"yardLine": a}, "end": {"yardLine": b}, "shortDisplayResult": res, "isScore": score, "description": ""}
-SUM401 = {"header": {"competitions": [{"status": {"type": {"state": "in", "shortDetail": "7:00 - 3rd"}}, "competitors": [{"homeAway": "away", "team": {"id": "3"}, "score": "17"}, {"homeAway": "home", "team": {"id": "8"}, "score": "20"}]}]},
+SUM401 = {"header": {"competitions": [{"status": {"type": {"state": "in", "shortDetail": "7:00 - 3rd"}}, "competitors": [{"homeAway": "away", "team": {"id": "3", "name": "Bears"}, "score": "17"}, {"homeAway": "home", "team": {"id": "8", "name": "Lions"}, "score": "20"}]}]},
     "boxscore": {"players": []},
+    "news": {"articles": [{"type": "Story", "headline": "Lions lean on the run game in a tight division race", "published": "2026-11-27T20:00:00Z", "links": {"web": {"href": "https://example.com/a"}}},
+                          {"type": "Media", "headline": "Bears vs. Lions: Game Highlights", "published": "2026-11-27T21:00:00Z"},
+                          {"type": "HeadlineNews", "headline": "Bears rookie listed as questionable", "published": "2026-11-27T19:00:00Z"},
+                          {"type": "Story", "headline": "Steelers move on with a win", "published": "2026-11-27T22:00:00Z"}]},
     "drives": {"previous": [DRV("d1", "3", 75, 0, "TD", True), DRV("d2", "8", 25, 52, "PUNT"), DRV("d3", "3", 80, 3, "FG", True), DRV("d4", "8", 30, 100, "TD", True)],
                "current": DRV("d5", "3", 70, 34, "")}}
 
@@ -212,6 +216,9 @@ async def main():
                 check(ok, what)
             txt = await pg.evaluate("(document.querySelector('.fsit') || {}).textContent || ''")
             check("CHI ball" in txt and "3rd and 7" in txt, "the field says whose ball and the down (%r)" % txt)
+            hl = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), b = document.querySelector('.detail > .back').getBoundingClientRect(), r = e.getBoundingClientRect(); return [e.dataset.n, e.textContent, Math.round(r.left - b.right), Math.round(Math.abs((r.top + r.bottom) / 2 - (b.top + b.bottom) / 2))] })()""")
+            check(hl[0] == "1 of 2" and "Lions lean" in hl[1], "the game's own headlines sit beside the back button, no highlights or other teams (%r)" % hl)
+            check(hl[2] >= 8 and hl[3] <= 4, "the headline is beside the back button, centred on it (%r)" % hl)
             st = await pg.evaluate("[...document.querySelectorAll('#detail canvas[data-k]')].map(c => c.className)")
             check(len(st) >= 3, "game charts are set to draw in on scroll (%d)" % len(st))
             # a short screen, so the drives start out of view and are scrolled to
