@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1756">
+<meta name="agate-version" content="2026.11.27-1802">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -2054,7 +2054,9 @@ header { view-transition-name: masthead; }
       if (offL && !lastError) main.append(h("p", { class: "empty", text: (offL.title || offL.label) + " is in its off-season." + (returnDate(offL) ? " It's back in " + returnDate(offL) + "." : "") }));
       else main.append(h("p", { class: "empty", text: mode === "live" ? (lastError ? "Couldn't load scores: " + lastError + "." : "No games on " + which + "'s scoreboard " + (isToday() ? "right now." : "that day.")) : "Loading scores…" }));
     }
-    var pend = pending; pending = []; pend.forEach(schedDraw);
+    // Draw at once, in the same frame the rows went in, so a re-render never
+    // shows a blank canvas for a frame (that was the "blink").
+    var pend = pending; pending = []; pend.forEach(schedDraw); flushDraws();
     renderFeed(); drawRug(); wantOdds();
   }
   function renderFeed() {
@@ -2889,7 +2891,9 @@ header { view-transition-name: masthead; }
     var dark = t ? t === "dark" : !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     // Safari tints its bars to match the page's top edge: the band at home
     // screen, the paper in the browser.
-    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", STANDALONE && !document.documentElement.classList.contains("past-band") ? (dark ? "#1d1c1a" : "#1d1c1a") : (dark ? "#1d1c1a" : "#fffff8"));
+    var m = document.querySelector('meta[name="theme-color"]'); var tcv = STANDALONE ? "#1d1c1a" : (dark ? "#1d1c1a" : "#fffff8");
+    // (the home-screen app keeps one value: changing it makes iOS resize the page)
+    if (m && m.getAttribute("content") !== tcv) m.setAttribute("content", tcv);
   }
   $("theme").addEventListener("click", function () {
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
@@ -2905,7 +2909,10 @@ header { view-transition-name: masthead; }
 
   setInterval(function () { if (moving) return; if (mode === "live") renderStatus(); drawRug(); }, 1000);
   var rt = null;
-  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(render, 150); });
+  // Only a change of width redraws the page. iPhones fire resize when the
+  // bars at the top change, which re-rendered every line for nothing.
+  var lastW = window.innerWidth;
+  window.addEventListener("resize", function () { if (window.innerWidth === lastW) return; lastW = window.innerWidth; clearTimeout(rt); rt = setTimeout(render, 150); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { render(); });
 
   window.addEventListener("hashchange", route);
