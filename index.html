@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1807">
+<meta name="agate-version" content="2026.11.27-1810">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -254,7 +254,10 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 20px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
 .dteam { display: grid; min-width: 0; }
 .dteam.home { text-align: right; justify-items: end; }
-.dteam .nm { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+/* long names wrap to a second line, and only then are cut short */
+.dteam .tlink { display: block; min-width: 0; max-width: 100%; }
+.dteam .nm { font-size: 18px; line-height: 1.15; overflow: hidden; max-width: 100%; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .dteam .rec { font-size: 14px; font-style: italic; color: var(--gray); line-height: 1.2; }
 .dteam .big { font-size: clamp(44px, 8vw, 72px); line-height: 1; }
 .dteam.away .nm { color: var(--away); } .dteam.home .nm { color: var(--home); }
