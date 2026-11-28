@@ -54,6 +54,22 @@ NCAAM = {"events": [
     game("504", start, "in", "Halftime", comp(team("2509", "PURD", "Purdue Boilermakers", "000000"), 60, team("356", "ILL", "Illinois Fighting Illini", "e84a27"), 44, [60], [44]), 0, 2),
     game("503", start, "in", "3:14 - 2nd", comp(team("222", "VILL", "Villanova Wildcats", "00205b"), 46, team("2305", "KU", "Kansas Jayhawks", "0051ba"), 55, [20, 26], [25, 30]), 194, 2)]}
 
+# A hockey game in the 2nd: shots, goals, a power-play goal that ends a
+# minor early, matching minors that cancel, and a power play running now.
+# ESPN's hockey play clock counts up.
+def HP(per, mmss, tm, kind, a, h, pim=None):
+    p = {"period": {"number": per}, "clock": {"displayValue": mmss}, "team": {"id": tm}, "type": {"text": kind}, "text": kind, "awayScore": a, "homeScore": h}
+    if pim: p["type"].update({"penaltyMinutes": str(pim), "penaltyType": "Minor"})
+    return p
+NHL = {"events": [game("601", start, "in", "8:00 - 2nd", comp(team("21", "TOR", "Toronto Maple Leafs", "00205b"), 1, team("1", "BOS", "Boston Bruins", "000000", "fdb71a"), 2, [1, 0], [1, 1]), 480, 2)]}
+SUM601 = {"header": {"competitions": [{"status": {"type": {"state": "in", "shortDetail": "8:00 - 2nd"}}, "competitors": [{"homeAway": "away", "team": {"id": "21", "name": "Maple Leafs"}, "score": "1"}, {"homeAway": "home", "team": {"id": "1", "name": "Bruins"}, "score": "2"}]}]},
+    "boxscore": {"players": [], "teams": [
+        {"team": {"id": "21"}, "statistics": [{"name": n, "displayValue": v} for n, v in [("shotsTotal", "4"), ("faceoffPercent", "47.1"), ("powerPlayGoals", "0"), ("powerPlayOpportunities", "1"), ("hits", "12"), ("blockedShots", "6"), ("takeaways", "3"), ("giveaways", "5"), ("penaltyMinutes", "4")]]},
+        {"team": {"id": "1"}, "statistics": [{"name": n, "displayValue": v} for n, v in [("shotsTotal", "9"), ("faceoffPercent", "52.9"), ("powerPlayGoals", "1"), ("powerPlayOpportunities", "1"), ("hits", "9"), ("blockedShots", "4"), ("takeaways", "2"), ("giveaways", "7"), ("penaltyMinutes", "4")]]}]},
+    "plays": [HP(1, "1:00", "21", "Shot", 0, 0), HP(1, "2:00", "1", "Shot", 0, 0), HP(1, "3:00", "21", "Tripping", 0, 0, 2), HP(1, "4:00", "1", "Goal", 0, 1),
+              HP(1, "5:00", "1", "Shot", 0, 1), HP(1, "6:00", "1", "Shot", 0, 1), HP(1, "7:00", "1", "Shot", 0, 1), HP(1, "10:00", "21", "Goal", 1, 1), HP(1, "15:00", "1", "Shot", 1, 1),
+              HP(2, "1:00", "1", "Shot", 1, 1), HP(2, "2:00", "1", "Shot", 1, 1), HP(2, "3:00", "1", "Shot", 1, 1), HP(2, "5:00", "1", "Goal", 1, 2), HP(2, "6:00", "21", "Shot", 1, 2),
+              HP(2, "7:00", "21", "Roughing", 1, 2, 2), HP(2, "7:00", "1", "Roughing", 1, 2, 2), HP(2, "11:00", "1", "Hooking", 1, 2, 2)]}
 def P(per, clk, tm, text, a, h):
     return {"period": {"number": per}, "clock": {"value": clk, "displayValue": "%d:%02d" % (clk // 60, clk % 60)}, "team": {"id": tm}, "text": text, "awayScore": a, "homeScore": h, "scoringType": {"displayName": "Touchdown"}}
 # A basketball game, play by play: a 10-0 home run in the middle, shots with
@@ -127,6 +143,8 @@ async def route(r):
     elif "summary?event=402" in u: body = SUM402
     elif "summary?event=401" in u: body = SUM401
     elif "summary?event=501" in u: body = SUM501
+    elif "hockey/nhl/scoreboard" in u: body = NHL
+    elif "summary?event=601" in u: body = SUM601
     elif "/teams/8/schedule" in u: body = SCHED8
     elif "/standings" in u and "group=" in u: body = STAND_GROUP
     elif "football/nfl/standings" in u: body = STAND_ALL
@@ -220,6 +238,13 @@ async def main():
             check("Live" in hl[0] and "Lions lead Bears 20–17 in the 3rd" in hl[0], "a live game gets its own headline from the score (%r)" % hl[0])
             check("Bears face 3rd and 7 at the DET 34" in hl[0], "and one from the down and distance (%r)" % hl[0])
             check("Lions lean" in hl[0] and "Bears rookie" in hl[0] and "Highlights" not in hl[0] and "Steelers" not in hl[0], "the game's own headlines run across the top, no highlights or other teams (%r)" % hl[0])
+            dm = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), hl = e.querySelector('.hl'), r = e.getBoundingClientRect(), cs = getComputedStyle(e), a = getComputedStyle(hl, '::after'), h = hl.getBoundingClientRect();
+              const top = r.top + parseFloat(cs.borderTopWidth), bot = r.bottom - parseFloat(cs.borderBottomWidth), mid = (top + bot) / 2;
+              return [Math.round(Math.abs((h.top + h.bottom) / 2 - mid) * 10) / 10, a.alignSelf, a.marginLeft, a.marginRight, getComputedStyle(e.querySelector('.win')).maskImage || 'none'] })()""")
+            check(dm[0] <= 1 and dm[1] == "center" and dm[2] == dm[3], "the diamond sits midway between the rules and between the headlines (%r)" % dm)
+            check(dm[4] == "none", "the ticker doesn't fade at its edges (%r)" % dm[4])
+            lc = await pg.evaluate("[getComputedStyle(document.querySelector('#dnews .hl.live')).color, getComputedStyle(document.querySelector('#dnews .hl.live .kick')).color]")
+            check(lc[0] == lc[1], "live lines take the grey of their Live label (%r)" % lc)
             check(hl[1] <= 40 and hl[2] <= 40, "on a phone the headlines run the full width (%r)" % hl[1:3])
             check(hl[5] == "fixed" and 10 <= hl[3] <= 24 and 8 <= hl[4] <= 30, "on a phone the back button sits bottom left, under the thumb (%r)" % hl[3:])
             st = await pg.evaluate("[...document.querySelectorAll('#detail canvas[data-k]')].map(c => c.className)")
@@ -245,6 +270,20 @@ async def main():
             check(all(abs(a - b) <= 2 for a, b in w2), "the rule under each team name is as long as the name (%r)" % w2)
             hd = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), b = document.querySelector('.detail > .back').getBoundingClientRect(), r = e.getBoundingClientRect(); return [Math.round(r.left - b.right), Math.round(Math.abs((r.top + r.bottom) / 2 - (b.top + b.bottom) / 2)), e.classList.contains('moving')] })()""")
             check(hd[0] >= 8 and hd[1] <= 6, "on a desktop the headlines run beside the back button (%r)" % hd)
+            await pg.close()
+            print("Live hockey game, phone")
+            pg, errs = await page(b, 393, "#game-nhl-601", True)
+            check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
+            try:
+                await pg.wait_for_function("(%s)('%s')" % (DRAWN_JS, "canvas.press"), timeout=8000); ok = True
+            except Exception: ok = False
+            check(ok, "the shot pressure chart is drawn")
+            hk = await pg.evaluate("""(() => [document.querySelectorAll('.dduel .drow').length, (document.querySelector('.dduel') || {}).textContent || '', (document.querySelector('#driver .cap') || {}).textContent || '', (document.querySelector('#dnews .run') || {}).textContent || ''])()""")
+            check(hk[0] == 8 and "1 of 1" in hk[1] and "faceoffs won" in hk[1], "hockey team stats, power play included (%d rows)" % hk[0])
+            check("power plays" in hk[2], "the margin chart shades the power plays (%r)" % hk[2][:80])
+            check("Maple Leafs on the power play" in hk[3] and "Bruins lead Maple Leafs 2–1 in the 2nd" in hk[3], "the live headlines know the power play (%r)" % hk[3])
+            n = await pg.evaluate("document.documentElement.scrollWidth - innerWidth")
+            check(n <= 0, "the hockey page can't be pushed sideways (%dpx)" % n)
             await pg.close()
             print("Live basketball game, phone")
             pg, errs = await page(b, 393, "#game-ncaam-501", True)

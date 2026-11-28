@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2200">
+<meta name="agate-version" content="2026.11.27-2209">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -283,21 +283,21 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .detail:has(> .dnews) > * { grid-column: 1 / -1; }
 .detail:has(> .dnews) > .back { grid-column: 1; grid-row: 1; }
 .detail > .dnews { grid-column: 2; grid-row: 1; align-self: center; min-width: 0;
-  border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 5px 0 6px; }
+  border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 6px 0; }
 .dnews .win { overflow: hidden; }
-.dnews.moving .win { -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent); }
 .dnews:empty { display: none; }
+.dpress canvas { display: block; width: 100%; height: 190px; }
 .dnews .track { display: flex; width: max-content; }
 .dnews.moving .track { animation: ticker 40s linear infinite; }
 .dnews.moving:active .track { animation-play-state: paused; }
 @keyframes ticker { to { transform: translateX(-50%); } }
-.dnews .run { display: flex; white-space: nowrap; }
+.dnews .run { display: flex; align-items: center; white-space: nowrap; }
 .dnews .hl { font-family: var(--data); font-weight: 560; font-size: 21px; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink);
-  font-variation-settings: "opsz" 48; }
+  font-variation-settings: "opsz" 48; display: inline-flex; align-items: baseline; }
+.dnews .hl.live { color: var(--gray); }   /* written by the app, not an article: in the grey of its Live label */
 /* the separator: a drawn diamond with the same space either side */
 .dnews .hl::after { content: ""; display: inline-block; width: 6px; height: 6px; background: var(--gray); transform: rotate(45deg);
-  margin: 0 22px; vertical-align: 0.3em; }
+  margin: 0 22px; flex: none; align-self: center; }
 .dnews:not(.moving) .hl { white-space: normal; }
 .dnews:not(.moving) .hl:last-child::after { content: none; }
 .dnews .hl a { color: inherit; text-decoration: none; }
@@ -499,8 +499,8 @@ canvas.fin { display: block; width: 100%; height: 170px; }
 canvas.field { display: block; width: 100%; height: 52px; }
 canvas.mfield { display: block; width: 100%; max-width: 72px; height: 9px; margin-top: 3px; }
 .ddrives { margin: 18px 0 6px; }
-.ddrives h3 { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; margin: 0 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); font-family: var(--data); }
-.ddrives h3 .c { letter-spacing: 0; font-style: italic; color: var(--gray); font-weight: 400; margin-left: 6px; font-family: var(--serif); }
+.dpress h3, .ddrives h3 { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; margin: 0 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); font-family: var(--data); }
+.dpress h3 .c, .ddrives h3 .c { letter-spacing: 0; font-style: italic; color: var(--gray); font-weight: 400; margin-left: 6px; font-family: var(--serif); }
 canvas.drives { display: block; width: 100%; }
 /* basketball */
 .dfouls { margin: 10px 0 2px; font-size: 14px; }
@@ -778,8 +778,9 @@ header { view-transition-name: masthead; }
       var tid = String((pl.team || {}).id || ""), sd = side[tid], isHome = sd ? sd.home : null;
       var hasScore = pl.homeScore != null && pl.awayScore != null;
       if (!hasScore) { if (isHome === true) th++; else if (isHome === false) ta++; }
-      var per = pl.period || {}, ck = pl.clock || {};
-      plays.push({ per: +per.number || 1, half: per.type || "", clock: ck.value != null ? +ck.value : null, cd: ck.displayValue || "",
+      var per = pl.period || {}, ck = pl.clock || {}, cv = ck.value != null ? +ck.value : null;
+      if (l.sport === "hockey") { var em = /^(\d+):(\d+)/.exec(ck.displayValue || ""); if (em) cv = Math.max(0, l.len - (+em[1] * 60 + +em[2])); }   // hockey counts up
+      plays.push({ per: +per.number || 1, half: per.type || "", clock: cv, cd: ck.displayValue || "",
         side: isHome == null ? "" : isHome ? "home" : "away", text: pl.text || pl.shortText || ((pl.type || {}).text) || "",
         kind: (pl.scoringType || {}).displayName || ((pl.type || {}).text) || "",
         a: hasScore ? +pl.awayScore : ta, h: hasScore ? +pl.homeScore : th });
@@ -796,7 +797,10 @@ header { view-transition-name: masthead; }
     // Play by play (basketball lists every play; football's sit inside its drives).
     var all = (d.plays || []).slice();
     (dsrc.previous || []).concat(dsrc.current ? [dsrc.current] : []).forEach(function (dv) { (dv.plays || []).forEach(function (pp) { all.push(pp); }); });
-    var clockSec = function (cv) { var m = /^(\d+):(\d+)(?:\.(\d+))?$/.exec(String((cv || {}).displayValue || "")); return m ? +m[1] * 60 + +m[2] : (cv && cv.value != null ? +cv.value : null); };
+    var clockSec = function (cv) {
+      var m = /^(\d+):(\d+)(?:\.(\d+))?$/.exec(String((cv || {}).displayValue || "")), v = m ? +m[1] * 60 + +m[2] : (cv && cv.value != null ? +cv.value : null);
+      return v != null && l.sport === "hockey" ? Math.max(0, l.len - v) : v;   // hockey's play clock counts up
+    };
     var at = function (pp) { var per = +((pp.period || {}).number) || 1, ck = clockSec(pp.clock); return ck == null ? null : progress(l, { state: "in", period: per, clock: ck, detail: "" }); };
     var sideOf = function (pp) { var t = side[String((pp.team || {}).id || "")]; return t ? (t.home ? "home" : "away") : ""; };
     // ESPN's own win chance, play by play: home's chance minus the visitors'.
@@ -828,6 +832,26 @@ header { view-transition-name: masthead; }
         bb.stats[sd.home ? "home" : "away"] = m;
       });
     }
+    // Hockey: every shot on goal (goals included), and every penalty, with
+    // how long it sends a player off.
+    var hk = null;
+    if (l.sport === "hockey" && (d.plays || []).length) {
+      hk = { shots: [], pens: [], stats: {} };
+      d.plays.forEach(function (pp) {
+        var ty = pp.type || {}, tt = ty.text || "", sd = sideOf(pp), p = at(pp);
+        if (p == null || !sd) return;
+        if (tt === "Shot" || tt === "Goal") hk.shots.push({ p: p, side: sd, goal: tt === "Goal", str: ((pp.strength || {}).abbreviation || "") });
+        var pm = +ty.penaltyMinutes;
+        if (pm) hk.pens.push({ p: p, side: sd, min: pm, kind: String(ty.penaltyType || ""), what: tt });
+      });
+      hk.shots.sort(function (x, y) { return x.p - y.p; }); hk.pens.sort(function (x, y) { return x.p - y.p; });
+      ((d.boxscore || {}).teams || []).forEach(function (t) {
+        var sd = side[String((t.team || {}).id)]; if (!sd) return;
+        var m = {}; (t.statistics || []).forEach(function (x) { m[x.name] = x.displayValue; });
+        if (m.powerPlayGoals != null && m.powerPlayOpportunities != null) m.pp = m.powerPlayGoals + " of " + m.powerPlayOpportunities;
+        hk.stats[sd.home ? "home" : "away"] = m;
+      });
+    }
     var st = ((comp.status || {}).type || {});
     // Headlines for this game: ESPN's recap once there is one, then the
     // league's news that names either team. Highlight clips are left out.
@@ -843,7 +867,7 @@ header { view-transition-name: masthead; }
     arts.filter(function (a) { return a.type === "Recap"; }).forEach(function (a) { addNews(a, true); });
     if (d.article && d.article.headline) addNews(d.article, true);
     arts.sort(function (x, y) { return Date.parse(y.published || 0) - Date.parse(x.published || 0); }).forEach(function (a) { addNews(a, false); });
-    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb, news: news.slice(0, 5), nick: nick,
+    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb, hk: hk, news: news.slice(0, 5), nick: nick,
       tid: (comp.competitors || []).map(function (c) { return String((c.team || {}).id || ""); }).filter(Boolean) };
   }
 
@@ -1593,6 +1617,14 @@ header { view-transition-name: masthead; }
         g.fillText((r.side === "home" ? s2 && s2.home.abbr : s2 && s2.away.abbr || "") + " " + r.pts + "–0", (x0 + x1) / 2, pad.t + 1);
       });
     }
+    // Hockey power plays: a faint band in the colour of the team with the
+    // extra skater, from the penalty to its end (or the goal that ends it).
+    if (big && hs.pps && hs.pps.length) {
+      hs.pps.forEach(function (b) {
+        var x0 = X(b.p0), x1 = Math.max(X(Math.min(b.p1, span)), x0 + 2), col = b.side === "home" ? c.home : c.away;
+        g.fillStyle = alpha(col, 0.11); g.fillRect(x0, pad.t, x1 - x0, H - pad.t - pad.b);
+      });
+    }
     // The win-chance shadow, behind everything: home's chance minus the
     // visitors', full height at certainty.
     var od = odds.get(l.key + ":" + ev.id);
@@ -1652,6 +1684,75 @@ header { view-transition-name: masthead; }
         g.fillText(endLab, endX + 2, endY - pad.t < 14 ? endY + 14 : endY - 14);
       }
     }
+  }
+
+  // ---- Hockey -------------------------------------------------------------
+  // Power plays from the penalties: minors last two minutes unless the side
+  // with the extra skater scores; majors run their full five. Matching
+  // penalties at the same moment cancel out (four on four, no power play).
+  function ppBands(l, hk) {
+    var MIN = 60 / (l.len * l.n), out = [], pens = hk.pens.filter(function (x) { return x.min === 2 || x.min === 4 || x.min === 5; });
+    var used = pens.map(function () { return false; });
+    pens.forEach(function (x, i) {
+      if (used[i]) return;
+      for (var j = 0; j < pens.length; j++) if (j !== i && !used[j] && pens[j].side !== x.side && pens[j].min === x.min && Math.abs(pens[j].p - x.p) < 1e-6) { used[i] = used[j] = true; return; }
+    });
+    pens.forEach(function (x, i) {
+      if (used[i]) return;
+      var adv = x.side === "home" ? "away" : "home", p1 = x.p + x.min * MIN;
+      if (x.min !== 5) { var gl = hk.shots.filter(function (q) { return q.goal && q.side === adv && q.p > x.p && q.p <= p1; })[0]; if (gl) p1 = gl.p; }
+      out.push({ p0: x.p, p1: p1, side: adv });
+    });
+    return out;
+  }
+  // Shots on goal as the game goes: each side's count climbing in its own
+  // colour, goals as dots on the line. The score can flatter; this can't.
+  function drawPressure(canvas, l, ev, hk, tc, s2) {
+    var sc = sizeCanvas(canvas); if (!sc) return;
+    var g = sc.g, W = sc.w, H = sc.h, c = Object.assign({}, pal(), tc || {});
+    var pad = { l: 4, r: 62, t: 10, b: 22 }, end = Math.max(1, ev ? progress(l, ev) : 0, hk.shots.length ? hk.shots[hk.shots.length - 1].p : 0);
+    var tot = { home: 0, away: 0 }; hk.shots.forEach(function (q) { tot[q.side]++; });
+    var top = Math.max(10, tot.home, tot.away);
+    var X = function (p) { return pad.l + p / end * (W - pad.l - pad.r); }, Y = function (n) { return H - pad.b - n / top * (H - pad.t - pad.b); };
+    g.strokeStyle = c.rule; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(pad.l, Math.round(Y(0)) + 0.5); g.lineTo(W - pad.r, Math.round(Y(0)) + 0.5); g.stroke();
+    g.font = "13px " + DATA; g.fillStyle = c.gray; g.textAlign = "center"; g.textBaseline = "top";
+    for (var k = 1; k <= Math.ceil(end * l.n - 1e-6); k++) {
+      var xa = X((k - 1) / l.n), xb = X(Math.min(k / l.n, end));
+      if (k < Math.ceil(end * l.n - 1e-6) || k / l.n <= end) { g.beginPath(); g.moveTo(Math.round(xb) + 0.5, pad.t); g.lineTo(Math.round(xb) + 0.5, H - pad.b + 4); g.stroke(); }
+      g.fillText(k > l.n ? "OT" : "P" + k, (xa + xb) / 2, H - pad.b + 7);
+    }
+    var nowP = ev && ev.state === "in" ? progress(l, ev) : end;
+    ["away", "home"].forEach(function (sd) {
+      var n = 0, x = X(0), path = [[x, Y(0)]], dots = [];
+      hk.shots.forEach(function (q) { if (q.side !== sd) return; var xx = X(q.p); path.push([xx, Y(n)]); n++; path.push([xx, Y(n)]); if (q.goal) dots.push([xx, Y(n)]); });
+      path.push([X(nowP), Y(n)]);
+      g.strokeStyle = c[sd]; g.lineWidth = 2; g.lineJoin = "miter"; g.beginPath();
+      path.forEach(function (pt, i) { if (i) g.lineTo(pt[0], pt[1]); else g.moveTo(pt[0], pt[1]); }); g.stroke();
+      dots.forEach(function (d) { g.fillStyle = c.bg; g.beginPath(); g.arc(d[0], d[1], 4.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = c[sd]; g.lineWidth = 2; g.stroke(); g.fillStyle = c[sd]; g.beginPath(); g.arc(d[0], d[1], 2, 0, Math.PI * 2); g.fill(); });
+      sd === "away" ? (pressAway = Y(n)) : (pressHome = Y(n));
+    });
+    // end labels, nudged apart when the counts are close
+    var ya = pressAway, yh = pressHome;
+    if (Math.abs(ya - yh) < 15) { var mid = (ya + yh) / 2, up = tot.home >= tot.away; yh = mid + (up ? -8 : 8); ya = mid + (up ? 8 : -8); }
+    g.font = "15px " + DATA; g.textAlign = "left"; g.textBaseline = "middle";
+    var ab = function (sd) { return (s2 && s2[sd] && s2[sd].abbr) || (sd === "home" ? "Home" : "Away"); };
+    g.fillStyle = c.away; g.fillText(ab("away") + " " + tot.away, X(nowP) + 8, ya);
+    g.fillStyle = c.home; g.fillText(ab("home") + " " + tot.home, X(nowP) + 8, yh);
+  }
+  var pressAway = 0, pressHome = 0;
+  function renderHockey(l, ev, bx, tc, away, home, state) {
+    var hk = bx && bx.hk, pe = $("dpress");
+    if (!hk || l.sport !== "hockey") { pe.className = ""; pe.replaceChildren(); if (l.sport === "hockey") fillDuel($("dduel"), null, null); return; }
+    var col = function (sd) { return tc ? tc[sd] : pal().ink; }, ab = function (sd) { return (sd === "home" ? home : away).abbr || ""; };
+    if (hk.shots.length) {
+      var cv = h("canvas", { class: "press", "aria-label": "Shots on goal through the game; goals ringed" });
+      pe.className = "dpress";
+      pe.replaceChildren(h("h3", null, ["Shot pressure", h("span", { class: "c", text: " shots on goal through the game; rings are goals" })]), cv);
+      schedDraw(function () { drawPressure(cv, l, ev, hk, tc ? { home: tc.home, away: tc.away } : null, { home: home, away: away }); }); revealCanvas(cv, rvKey("press"), "lr");
+    } else { pe.className = ""; pe.replaceChildren(); }
+    fillDuel($("dduel"), hk.stats.away, hk.stats.home, [["shots on goal", "shotsTotal"], ["faceoffs won", "faceoffPercent", "%"], ["power play", "pp"],
+      ["hits", "hits"], ["blocked shots", "blockedShots"], ["takeaways", "takeaways"], ["giveaways", "giveaways", "", "low"], ["penalty minutes", "penaltyMinutes", "", "low"]], col, ab);
   }
 
   // ---- Basketball -------------------------------------------------------
@@ -2922,6 +3023,24 @@ header { view-transition-name: masthead; }
     return parts.length ? h("span", { class: "rec", text: parts.join(" · ") }) : "";
   }
   var tablesKey = "";
+  // Team stats, side by side: each bar out from the label, visitors left.
+  // Percentages run against 100, counts against the larger; the better
+  // figure is in bold (fewer is better for "low" rows).
+  function fillDuel(de, A, Hm, ROWS, col, ab) {
+    if (!(A && Hm)) { de.className = ""; de.replaceChildren(); return; }
+    var rows = ROWS.filter(function (r) { return A[r[1]] != null && Hm[r[1]] != null; }).map(function (r, ri) {
+      var a = parseFloat(A[r[1]]) || 0, hv = parseFloat(Hm[r[1]]) || 0, max = r[2] ? 100 : Math.max(a, hv, 1), u = r[2] || "", low = r[3] === "low";
+      var aUp = low ? a < hv : a > hv, hUp = low ? hv < a : hv > a;
+      return h("div", { class: "drow", style: "--i:" + ri }, [h("span", { class: "dv a" + (aUp ? " up" : ""), text: A[r[1]] + u }),
+        h("span", { class: "bar a" }, [h("i", { style: "width:" + (a / max * 100).toFixed(1) + "%;background:" + col("away") })]),
+        h("span", { class: "dl", text: r[0] }),
+        h("span", { class: "bar h" }, [h("i", { style: "width:" + (hv / max * 100).toFixed(1) + "%;background:" + col("home") })]),
+        h("span", { class: "dv h" + (hUp ? " up" : ""), text: Hm[r[1]] + u })]);
+    });
+    if (!rows.length) { de.className = ""; de.replaceChildren(); return; }
+    de.className = "dduel"; de.replaceChildren(h("h3", null, ["Team stats", h("span", { class: "c", text: " " + ab("away") + " left, " + ab("home") + " right; percentages against 100, counts against the larger" })]), h("div", { class: "drows" }, rows));
+    var drs = de.lastChild; drs._rvMs = 800 + rows.length * 70; revealCanvas(drs, rvKey("duel"), "bars");
+  }
   function renderBasketball(l, ev, bx, tc, away, home, state) {
     var bb = bx && bx.bb, ids = ["dfouls", "dduel", "dshots", "dhot"];
     if (!bb || l.sport !== "basketball") { ids.forEach(function (i) { var e = $(i); e.className = ""; e.replaceChildren(); }); return; }
@@ -2940,21 +3059,8 @@ header { view-transition-name: masthead; }
       fe.className = "dfouls"; fe.replaceChildren(row("away"), row("home"));
     } else { fe.className = ""; fe.replaceChildren(); }
     // the stat duel
-    var A = bb.stats.away, Hm = bb.stats.home, de = $("dduel");
-    if (A && Hm) {
-      var ROWS = [["field goals", "fieldGoalPct", "%"], ["threes", "threePointFieldGoalPct", "%"], ["free throws", "freeThrowPct", "%"], ["rebounds", "totalRebounds"],
-        ["assists", "assists"], ["turnovers", "totalTurnovers"], ["points in the paint", "pointsInPaint"], ["fast-break points", "fastBreakPoints"]];
-      var rows = ROWS.filter(function (r) { return A[r[1]] != null && Hm[r[1]] != null; }).map(function (r, ri) {
-        var a = parseFloat(A[r[1]]) || 0, hv = parseFloat(Hm[r[1]]) || 0, max = r[2] ? 100 : Math.max(a, hv, 1), u = r[2] || "";
-        return h("div", { class: "drow", style: "--i:" + ri }, [h("span", { class: "dv a" + (a > hv ? " up" : ""), text: A[r[1]] + u }),
-          h("span", { class: "bar a" }, [h("i", { style: "width:" + (a / max * 100).toFixed(1) + "%;background:" + col("away") })]),
-          h("span", { class: "dl", text: r[0] }),
-          h("span", { class: "bar h" }, [h("i", { style: "width:" + (hv / max * 100).toFixed(1) + "%;background:" + col("home") })]),
-          h("span", { class: "dv h" + (hv > a ? " up" : ""), text: Hm[r[1]] + u })]);
-      });
-      de.className = "dduel"; de.replaceChildren(h("h3", null, ["Team stats", h("span", { class: "c", text: " " + ab("away") + " left, " + ab("home") + " right; percentages against 100, counts against the larger" })]), h("div", { class: "drows" }, rows));
-      var drs = de.lastChild; drs._rvMs = 800 + rows.length * 70; revealCanvas(drs, rvKey("duel"), "bars");
-    } else { de.className = ""; de.replaceChildren(); }
+    fillDuel($("dduel"), bb.stats.away, bb.stats.home, [["field goals", "fieldGoalPct", "%"], ["threes", "threePointFieldGoalPct", "%"], ["free throws", "freeThrowPct", "%"], ["rebounds", "totalRebounds"],
+      ["assists", "assists"], ["turnovers", "totalTurnovers", "", "low"], ["points in the paint", "pointsInPaint"], ["fast-break points", "fastBreakPoints"]], col, ab);
     // shot charts
     var se = $("dshots");
     if (bb.shots.length) {
@@ -3046,6 +3152,13 @@ header { view-transition-name: masthead; }
       if (cur && cur.pts >= RUN_MIN) out.push((cur.side === "home" ? H : A) + " on a " + cur.pts + "–0 run");
       var lc = bb.stats && bb.stats.home && +bb.stats.home.leadChanges;
       if (lc >= 8) out.push(lc + " lead changes and counting");
+    }
+    if (bx && bx.hk) {
+      var nowP = progress(l, ev), pp = ppBands(l, bx.hk).filter(function (b) { return b.p0 <= nowP && b.p1 > nowP; }).pop();
+      if (pp) out.push((pp.side === "home" ? H : A) + " on the power play");
+      var sog = { home: 0, away: 0 }; bx.hk.shots.forEach(function (q) { sog[q.side]++; });
+      var hi = sog.home >= sog.away ? "home" : "away", lo = hi === "home" ? "away" : "home";
+      if (sog[hi] >= 2 * Math.max(sog[lo], 4) && (hi === "home" ? sh <= sa : sa <= sh)) out.push((hi === "home" ? H : A) + " outshooting the " + (hi === "home" ? A : H) + " " + sog[hi] + "–" + sog[lo]);
     }
     if (l.sport === "football" && ev.sit && ev.sit.text) {
       var fg = fieldGeom(ev), off = fg && fg.off === "home" ? H : fg ? A : "", st = ev.sit.short || "", at = ev.sit.text.replace(/^.*\bat\b\s*/i, "");
@@ -3146,7 +3259,7 @@ header { view-transition-name: masthead; }
     var bx = box.data;
     if (!$("dhead")) {
       d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { class: "dnews", id: "dnews", "aria-live": "polite" }), h("div", { id: "dhead" }), h("div", { id: "dfouls" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "ddrives" }), h("div", { id: "dduel" }), h("div", { id: "dshots" }), h("div", { id: "dhot" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+        h("div", { class: "dnews", id: "dnews", "aria-live": "polite" }), h("div", { id: "dhead" }), h("div", { id: "dfouls" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "dpress" }), h("div", { id: "ddrives" }), h("div", { id: "dduel" }), h("div", { id: "dshots" }), h("div", { id: "dhot" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
       renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
@@ -3185,9 +3298,19 @@ header { view-transition-name: masthead; }
       if (aa != null && hh2 != null) pts0.push({ p: Math.max(progress(l, ev), pts0[pts0.length - 1].p), a: aa, h: hh2 });
       hsDraw = { pts: pts0, marks: hs.marks };
     }
+    var hkg = bx && bx.hk && bx.hk.shots.filter(function (q) { return q.goal; });
+    if (ev && hs && hkg && hkg.length && l.sport === "hockey") {
+      // hockey: every goal, exact, from the play by play
+      var ga = 0, gh = 0, ptsH = [{ p: 0, a: 0, h: 0 }];
+      hkg.forEach(function (q) { if (q.side === "home") gh++; else ga++; ptsH.push({ p: Math.max(q.p, ptsH[ptsH.length - 1].p), a: ga, h: gh }); });
+      var sH = sides(ev), fa = num(sH.away.score), fh = num(sH.home.score);
+      if (fa != null && fh != null) ptsH.push({ p: Math.max(progress(l, ev), ptsH[ptsH.length - 1].p), a: fa, h: fh });
+      hsDraw = { pts: ptsH, marks: hs.marks };
+    }
     var runs = bb ? findRuns(bb.series) : [];
     renderNews(gameNews(l, ev, bx, hsDraw, away, home));
-    if (hsDraw) hsDraw = Object.assign({}, hsDraw, { espn: bx && bx.espn && bx.espn.length > 1 ? bx.espn : null, runs: runs });
+    var pps = bx && bx.hk && l.sport === "hockey" ? ppBands(l, bx.hk) : [];
+    if (hsDraw) hsDraw = Object.assign({}, hsDraw, { espn: bx && bx.espn && bx.espn.length > 1 ? bx.espn : null, runs: runs, pps: pps });
     var chosen = sel.i >= 0 && plays[sel.i] ? plays[sel.i] : null;
     var selPt = chosen ? { p: playProgress(l, chosen), m: chosen.h - chosen.a, side: chosen.side } : null;
     if (ev && hs && state !== "pre") {
@@ -3198,6 +3321,7 @@ header { view-transition-name: masthead; }
       if (odc && odc.shadow && odc.shadow.length > 1) capBits.push("Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing.");
       if (hsDraw && hsDraw.espn) capBits.push("Fine line: ESPN's own win chance after every play, on the same scale.");
       if (runs.length) capBits.push("Shaded: runs of " + RUN_MIN + " or more points unanswered.");
+      if (pps.length) capBits.push("Shaded: power plays, in the colour of the team with the extra skater.");
       var lead = bb && bb.stats.home && bb.stats.away ? [bb.stats.away.largestLead && "largest lead " + (away.abbr || "") + " " + bb.stats.away.largestLead + ", " + (home.abbr || "") + " " + bb.stats.home.largestLead,
         bb.stats.home.leadChanges != null ? bb.stats.home.leadChanges + (+bb.stats.home.leadChanges === 1 ? " lead change" : " lead changes") : null].filter(Boolean).join(" · ") : "";
       dr.replaceChildren(c, lead ? h("p", { class: "leadline", text: lead }) : "", capBits.length ? h("p", { class: "cap", text: capBits.join(" ") }) : "");
@@ -3230,6 +3354,7 @@ header { view-transition-name: masthead; }
       schedDraw(dc._redraw); revealCanvas(dc, dc.dataset.k);
     } else { de.className = ""; de.replaceChildren(); }
     renderBasketball(l, ev, bx, tc, away, home, state);
+    renderHockey(l, ev, bx, tc, away, home, state);
     var note = $("dnote");
     note.className = "dnote" + (box.error ? " err" : "");
     if (box.error) note.textContent = "Couldn't load the box score: " + box.error;
