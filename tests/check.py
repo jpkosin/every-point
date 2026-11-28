@@ -1,0 +1,151 @@
+"""ScoreCard checks: open the app in a headless Chrome with fake games, and
+fail loudly if a change broke the layout. Run before every update:
+
+    python3 tests/check.py            (serves the repo itself on :8765)
+
+Every request to ESPN, Polymarket, Jolpica and Google Fonts is answered
+here with fixed fixtures, so the checks are the same every run and need no
+network. Each check names what it guards against."""
+import asyncio, json, math, os, subprocess, sys, time, datetime as dt
+from playwright.async_api import async_playwright
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PORT = 8765
+now = time.time(); start = now - 100 * 60
+iso = lambda t: dt.datetime.fromtimestamp(t, dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+
+def team(id, ab, name, color, alt="bbbbbb"):
+    return {"id": id, "abbreviation": ab, "displayName": name, "shortDisplayName": name.split()[-1], "color": color, "alternateColor": alt}
+def comp(away, ascore, home, hscore, als, hls):
+    return {"competitors": [
+        {"homeAway": "away", "score": str(ascore), "team": away, "linescores": [{"value": v} for v in als]},
+        {"homeAway": "home", "score": str(hscore), "team": home, "linescores": [{"value": v} for v in hls]}]}
+def game(id, date, state, detail, c, clock=0, period=1):
+    return {"id": id, "date": iso(date), "status": {"clock": clock, "period": period, "type": {"state": state, "shortDetail": detail}}, "competitions": [c]}
+
+NFL = {"events": [
+    game("401", start, "in", "7:00 - 3rd", comp(team("3", "CHI", "Chicago Bears", "0b162a", "c83803"), 17, team("8", "DET", "Detroit Lions", "0076b6"), 20, [7, 10], [13, 7]), 420, 3),
+    game("402", now - 200 * 60, "post", "Final", comp(team("21", "PHI", "Philadelphia Eagles", "06424d"), 24, team("6", "DAL", "Dallas Cowboys", "002a5c"), 21, [7, 7, 3, 7], [3, 14, 0, 4]))]}
+# wide college names: four letters and a long display name
+NCAAM = {"events": [
+    game("501", start, "in", "14:01 - 2nd", comp(team("2449", "NDSU", "North Dakota State Bison", "0a5640"), 38, team("23", "SJSU", "San Jose State Spartans", "0055a2"), 31, [30, 8], [25, 6]), 841, 2),
+    game("502", start, "in", "End of 1st", comp(team("2450", "NCWU", "North Carolina Wesleyan Battling Bishops", "000000"), 2, team("151", "ECU", "East Carolina Pirates", "4b1869"), 12, [2], [12]), 0, 1),
+    game("503", start, "in", "3:14 - 2nd", comp(team("222", "VILL", "Villanova Wildcats", "00205b"), 46, team("2305", "KU", "Kansas Jayhawks", "0051ba"), 55, [20, 26], [25, 30]), 194, 2)]}
+
+def P(per, clk, tm, text, a, h):
+    return {"period": {"number": per}, "clock": {"value": clk, "displayValue": "%d:%02d" % (clk // 60, clk % 60)}, "team": {"id": tm}, "text": text, "awayScore": a, "homeScore": h, "scoringType": {"displayName": "Touchdown"}}
+SUM402 = {"header": {"competitions": [{"status": {"type": {"state": "post", "shortDetail": "Final"}}, "competitors": [{"homeAway": "away", "team": {"id": "21"}, "score": "24"}, {"homeAway": "home", "team": {"id": "6"}, "score": "21"}]}]},
+    "boxscore": {"players": []},
+    "scoringPlays": [P(1, 600, "21", "Jalen Hurts 12 yd run", 7, 0), P(2, 700, "6", "CeeDee Lamb 34 yd pass", 7, 10), P(3, 400, "21", "Field goal", 10, 10), P(4, 40, "21", "A.J. Brown 22 yd pass", 17, 10)]}
+
+def sched_game(i, d, opp, oid, home, us, them, state="post"):
+    me = {"id": "8", "homeAway": "home" if home else "away", "winner": (us > them) if state == "post" else None, "team": {"id": "8", "abbreviation": "DET", "displayName": "Detroit Lions"},
+          "score": {"value": us, "displayValue": str(us)} if state == "post" else None,
+          "leaders": [{"name": "passingLeader", "displayName": "Passing Leader", "leaders": [{"displayValue": "26/39, 206 YDS", "athlete": {"id": "3046779", "displayName": "Jared Goff"}}]}]}
+    op = {"id": oid, "homeAway": "away" if home else "home", "winner": (them > us) if state == "post" else None, "team": {"id": oid, "abbreviation": opp, "displayName": opp + " Team", "color": "aa3333"},
+          "score": {"value": them, "displayValue": str(them)} if state == "post" else None}
+    return {"id": "9%02d" % i, "date": d, "competitions": [{"date": d, "status": {"type": {"state": state, "shortDetail": "Final" if state == "post" else ""}}, "broadcasts": [{"media": {"shortName": "FOX"}}], "competitors": [me, op]}]}
+SCHED8 = {"team": {"id": "8", "abbreviation": "DET", "displayName": "Detroit Lions", "color": "0076b6", "recordSummary": "8-3", "standingSummary": "2nd in NFC North", "groups": {"id": "10"}},
+          "events": [sched_game(i, iso(now + (i - 11) * 7 * 86400), o, str(100 + i), i % 2 == 0, 10 + (i * 7) % 25, 7 + (i * 5) % 24, "post" if i < 11 else "pre")
+                     for i, o in enumerate(["NO", "CHI", "GB", "MIN", "TB", "DAL", "LAR", "SEA", "NYG", "ATL", "CHI", "GB", "MIN", "BUF"])]}
+def ent(id, ab, nm, w, l):
+    pct = w / (w + l)
+    return {"team": {"id": id, "abbreviation": ab, "displayName": nm}, "stats": [{"name": "winPercent", "value": pct, "displayValue": ("%.3f" % pct)[1:]}, {"name": "overall", "displayValue": "%d-%d" % (w, l)}, {"name": "differential", "displayValue": "+12"}]}
+DIV = {"standings": {"entries": [ent("3", "CHI", "Chicago Bears", 9, 2), ent("8", "DET", "Detroit Lions", 8, 3), ent("9", "GB", "Green Bay Packers", 6, 5)]}}
+STAND_GROUP = dict(DIV, name="NFC North")
+STAND_ALL = {"name": "National Football League", "children": [dict(DIV, name="American Football Conference"), dict(DIV, name="National Football Conference")]}
+def RR(rd, name, grid, pos, pts, status="Finished"):
+    return {"round": str(rd), "raceName": name + " Grand Prix", "Results": [{"grid": str(grid), "position": str(pos), "positionText": str(pos) if status == "Finished" else "R", "points": str(pts), "status": status,
+            "Driver": {"driverId": "hadjar", "permanentNumber": "6", "code": "HAD", "givenName": "Isack", "familyName": "Hadjar", "nationality": "French", "dateOfBirth": "2004-09-28"}, "Constructor": {"name": "RB F1 Team"}}]}
+DRV = {"MRData": {"RaceTable": {"Races": [RR(1, "Australian", 11, 8, 4), RR(2, "Chinese", 7, 5, 10), RR(3, "Japanese", 14, 0, 0, "Collision")]}}}
+DRVS = {"MRData": {"StandingsTable": {"StandingsLists": [{"DriverStandings": [{"position": "9", "points": "14", "wins": "0", "Constructors": [{"name": "RB F1 Team"}]}]}]}}}
+DRVI = {"MRData": {"DriverTable": {"Drivers": [RR(1, "x", 0, 0, 0)["Results"][0]["Driver"]]}}}
+FONTCSS = ("@font-face{font-family:'EB Garamond';src:url(/fonts/EBGaramond%5Bwght%5D.ttf);font-weight:400 800}"
+           "@font-face{font-family:'Source Serif 4';src:url(/fonts/SourceSerif4%5Bopsz,wght%5D.ttf);font-weight:200 900}")
+
+async def route(r):
+    u = r.request.url
+    if u.startswith("http://localhost:%d" % PORT): return await r.continue_()
+    if "fonts.googleapis.com" in u: return await r.fulfill(status=200, body=FONTCSS, headers={"Content-Type": "text/css"})
+    body = {"events": []}
+    if "football/nfl/scoreboard" in u: body = NFL
+    elif "mens-college-basketball/scoreboard" in u: body = NCAAM
+    elif "summary?event=402" in u: body = SUM402
+    elif "/teams/8/schedule" in u: body = SCHED8
+    elif "/standings" in u and "group=" in u: body = STAND_GROUP
+    elif "football/nfl/standings" in u: body = STAND_ALL
+    elif "drivers/hadjar/results" in u: body = DRV
+    elif "drivers/hadjar/driverStandings" in u: body = DRVS
+    elif "drivers/hadjar.json" in u: body = DRVI
+    elif "polymarket" in u: body = []
+    await r.fulfill(status=200, body=json.dumps(body), headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"})
+
+FAILS = []
+def check(ok, what):
+    print(("  ok    " if ok else "  FAIL  ") + what)
+    if not ok: FAILS.append(what)
+
+async def page(b, w, hsh="", mobile=False):
+    pg = await b.new_page(viewport={"width": w, "height": 900}, device_scale_factor=2, has_touch=mobile, is_mobile=mobile)
+    errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
+    await pg.route("**/*", route)
+    await pg.goto("http://localhost:%d/index.html%s" % (PORT, hsh))
+    await pg.wait_for_timeout(1800)
+    return pg, errs
+
+async def main():
+    srv = subprocess.Popen([sys.executable, "-m", "http.server", str(PORT)], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1)
+    try:
+        async with async_playwright() as p:
+            chrome = os.environ.get("CHROME") or ("/usr/bin/google-chrome" if os.path.exists("/usr/bin/google-chrome") else None)
+            b = await p.chromium.launch(executable_path=chrome) if chrome else await p.chromium.launch()
+            for w, label in [(393, "phone"), (440, "big phone"), (640, "small tablet"), (1280, "desktop")]:
+                print("Scores list, %s (%d wide)" % (label, w))
+                pg, errs = await page(b, w, mobile=w < 600)
+                check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
+                inside = await pg.evaluate("!!document.querySelector('.wrap #games') && !!document.querySelector('.wrap .days')")
+                check(inside, "the scores sit inside the page wrapper (a stray tag once broke the margins)")
+                m = await pg.evaluate("""(() => { const h = document.querySelector('header .row').getBoundingClientRect(), g = document.querySelector('#games').getBoundingClientRect(), bd = document.querySelector('#board').getBoundingClientRect();
+                    return [Math.round(h.left), Math.round(g.left), Math.round(h.right), Math.round(document.querySelector('.livec').getBoundingClientRect().right), Math.round(bd.right)] })()""")
+                check(abs(m[0] - m[1]) <= 1, "scores line up with the masthead on the left (%s vs %s)" % (m[0], m[1]))
+                check(abs(m[3] - m[4]) <= 2, "masthead reaches the page's right edge (live count %s, page %s)" % (m[3], m[4]))
+                ov = await pg.evaluate("document.documentElement.scrollWidth - innerWidth")
+                check(ov <= 0, "nothing overflows sideways (%dpx)" % ov)
+                ws = await pg.evaluate("[...document.querySelectorAll('tr.row td.sp canvas')].map(c => Math.round(c.getBoundingClientRect().width))")
+                lo = 110 if w < 600 else 160
+                check(ws and min(ws) >= lo, "every margin line gets room: narrowest %s, want %d+" % (min(ws) if ws else None, lo))
+                check(ws and max(ws) - min(ws) <= 3, "margin lines line up across leagues (%s)" % sorted(set(ws)))
+                drawn = await pg.evaluate("""[...document.querySelectorAll('tr.row td.sp canvas')].every(c => { if (!c.width) return false;
+                    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })""")
+                check(drawn, "every margin line is drawn")
+                await pg.close()
+            print("Game page, phone")
+            pg, errs = await page(b, 393, "#game-ncaam-502", True)
+            check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
+            o = await pg.evaluate("""(() => { const a = document.querySelector('.dteam.away .nm').getBoundingClientRect(), m = document.querySelector('.dmid').getBoundingClientRect(), h = document.querySelector('.dteam.home .nm').getBoundingClientRect();
+                return [a.right, m.left, m.right, h.left] })()""")
+            check(o[0] <= o[1] + 1 and o[2] <= o[3] + 1, "long team names never run into the clock")
+            await pg.close()
+            pg, errs = await page(b, 393, "#game-nfl-402", True)
+            await pg.wait_for_timeout(800)
+            check(not errs, "game with scoring plays opens without errors")
+            n = await pg.evaluate("document.querySelectorAll('table.plays-t tr.pl').length")
+            check(n == 4, "scoring plays listed (%d)" % n)
+            big = await pg.evaluate("(() => { const c = document.querySelector('#driver canvas'); if (!c) return false; const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })()")
+            check(big, "the big margin chart is drawn")
+            await pg.close()
+            for hsh, sel, what in [("#team-nfl-8", ".tsched tr", "team page"), ("#standings-nfl", ".tstand tr", "league standings"), ("#driver-hadjar", "canvas.fin", "F1 driver page")]:
+                print(what.capitalize())
+                pg, errs = await page(b, 393, hsh, True)
+                await pg.wait_for_timeout(600)
+                check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
+                check(await pg.evaluate("document.querySelectorAll('%s').length" % sel) > 0, what + " shows its content")
+                await pg.close()
+            await b.close()
+    finally:
+        srv.terminate()
+    print("\n%s" % ("All checks passed." if not FAILS else "%d check(s) failed." % len(FAILS)))
+    sys.exit(1 if FAILS else 0)
+
+asyncio.run(main())

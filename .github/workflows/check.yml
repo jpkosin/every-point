@@ -1,0 +1,41 @@
+name: check
+# Every push runs the layout checks in tests/check.py in a headless Chrome.
+# If the repository's Pages source is set to "GitHub Actions", the site is
+# also deployed from here, and only when the checks pass; while it's set to
+# "Deploy from a branch", Pages publishes main itself and this only reports.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - run: python tests/check.py
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: mode
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: echo "type=$(gh api repos/${{ github.repository }}/pages --jq .build_type 2>/dev/null || echo legacy)" >> "$GITHUB_OUTPUT"
+      - if: steps.mode.outputs.type == 'workflow'
+        uses: actions/checkout@v4
+      - if: steps.mode.outputs.type == 'workflow'
+        uses: actions/upload-pages-artifact@v3
+        with: { path: "." }
+      - if: steps.mode.outputs.type == 'workflow'
+        id: d
+        uses: actions/deploy-pages@v4
+      - if: steps.mode.outputs.type != 'workflow'
+        run: echo "Pages publishes main directly; nothing to deploy here."
