@@ -12,6 +12,11 @@ from playwright.async_api import async_playwright
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = 8765
 now = time.time(); start = now - 100 * 60
+# Finished games are dated just after midnight today in the browser's time
+# zone (fixed below), so "today only" keeps them whenever the checks run.
+from zoneinfo import ZoneInfo
+TZ = "America/Chicago"
+midnight = dt.datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=5, second=0, microsecond=0).timestamp()
 iso = lambda t: dt.datetime.fromtimestamp(t, dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
 def team(id, ab, name, color, alt="bbbbbb"):
@@ -25,7 +30,7 @@ def game(id, date, state, detail, c, clock=0, period=1):
 
 NFL = {"events": [
     game("401", start, "in", "7:00 - 3rd", comp(team("3", "CHI", "Chicago Bears", "0b162a", "c83803"), 17, team("8", "DET", "Detroit Lions", "0076b6"), 20, [7, 10], [13, 7]), 420, 3),
-    game("402", now - 200 * 60, "post", "Final", comp(team("21", "PHI", "Philadelphia Eagles", "06424d"), 24, team("6", "DAL", "Dallas Cowboys", "002a5c"), 21, [7, 7, 3, 7], [3, 14, 0, 4]))]}
+    game("402", midnight, "post", "Final", comp(team("21", "PHI", "Philadelphia Eagles", "06424d"), 24, team("6", "DAL", "Dallas Cowboys", "002a5c"), 21, [7, 7, 3, 7], [3, 14, 0, 4]))]}
 # wide college names: four letters and a long display name
 NCAAM = {"events": [
     game("501", start, "in", "14:01 - 2nd", comp(team("2449", "NDSU", "North Dakota State Bison", "0a5640"), 38, team("23", "SJSU", "San Jose State Spartans", "0055a2"), 31, [30, 8], [25, 6]), 841, 2),
@@ -86,7 +91,7 @@ def check(ok, what):
     if not ok: FAILS.append(what)
 
 async def page(b, w, hsh="", mobile=False):
-    pg = await b.new_page(viewport={"width": w, "height": 900}, device_scale_factor=2, has_touch=mobile, is_mobile=mobile)
+    pg = await b.new_page(viewport={"width": w, "height": 900}, device_scale_factor=2, has_touch=mobile, is_mobile=mobile, timezone_id=TZ)
     errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
     await pg.route("**/*", route)
     await pg.goto("http://localhost:%d/index.html%s" % (PORT, hsh))
