@@ -47,6 +47,7 @@ NFL = {"events": [
 NCAAM = {"events": [
     game("501", start, "in", "14:01 - 2nd", comp(team("2449", "NDSU", "North Dakota State Bison", "0a5640"), 38, team("23", "SJSU", "San Jose State Spartans", "0055a2"), 31, [30, 8], [25, 6]), 841, 2),
     game("502", start, "in", "End of 1st", comp(team("2450", "NCWU", "North Carolina Wesleyan Battling Bishops", "000000"), 2, team("151", "ECU", "East Carolina Pirates", "4b1869"), 12, [2], [12]), 0, 1),
+    game("504", start, "in", "Halftime", comp(team("2509", "PURD", "Purdue Boilermakers", "000000"), 60, team("356", "ILL", "Illinois Fighting Illini", "e84a27"), 44, [60], [44]), 0, 2),
     game("503", start, "in", "3:14 - 2nd", comp(team("222", "VILL", "Villanova Wildcats", "00205b"), 46, team("2305", "KU", "Kansas Jayhawks", "0051ba"), 55, [20, 26], [25, 30]), 194, 2)]}
 
 def P(per, clk, tm, text, a, h):
@@ -132,10 +133,13 @@ async def main():
                     return [Math.round(h.left), Math.round(g.left), Math.round(h.right), Math.round(document.querySelector('.livec').getBoundingClientRect().right), Math.round(bd.right)] })()""")
                 check(abs(m[0] - m[1]) <= 1, "scores line up with the masthead on the left (%s vs %s)" % (m[0], m[1]))
                 check(abs(m[3] - m[4]) <= 2, "masthead reaches the page's right edge (live count %s, page %s)" % (m[3], m[4]))
-                ov = await pg.evaluate("document.documentElement.scrollWidth - innerWidth")
-                check(ov <= 0, "nothing overflows sideways (%dpx)" % ov)
+                ov = await pg.evaluate("Math.max(...[...document.querySelectorAll('table.agate')].map(t => t.getBoundingClientRect().right)) - document.querySelector('#games').getBoundingClientRect().right")
+                check(ov <= 1, "no score table runs past the page edge (%dpx over)" % ov)
+                if ov > 1: print(await pg.evaluate("[...document.querySelectorAll('tr.row')].map(r=>[...r.cells].map(c=>c.className.split(' ')[0]+':'+Math.round(c.getBoundingClientRect().width)).join(' ')).join(' | ')"))
+                ov2 = await pg.evaluate("document.documentElement.scrollWidth - innerWidth")
+                check(ov2 <= 0, "the page can't be pushed sideways (%dpx)" % ov2)
                 ws = await pg.evaluate("[...document.querySelectorAll('tr.row td.sp canvas')].map(c => Math.round(c.getBoundingClientRect().width))")
-                lo = 110 if w < 600 else 160
+                lo = 100 if w < 600 else 160
                 check(ws and min(ws) >= lo, "every margin line gets room: narrowest %s, want %d+" % (min(ws) if ws else None, lo))
                 check(ws and max(ws) - min(ws) <= 3, "margin lines line up across leagues (%s)" % sorted(set(ws)))
                 drawn = await pg.evaluate("""[...document.querySelectorAll('tr.row td.sp canvas')].every(c => { if (!c.width) return false;

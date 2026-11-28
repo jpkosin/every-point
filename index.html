@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1924">
+<meta name="agate-version" content="2026.11.27-1929">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -57,6 +57,7 @@ table.agate th.lg span, table.agate td.st.live em { font-family: var(--serif); }
 :root[data-theme=light] { color-scheme: light; }
 :root[data-theme=dark] { color-scheme: dark; }
 * { box-sizing: border-box; min-width: 0; }
+html { overflow-x: clip; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 var(--serif); overflow-x: clip;
   font-variant-numeric: lining-nums tabular-nums; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -222,7 +223,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
   td.lp { display: none; }
   td.sp { width: 100%; min-width: 64px; }
   td.st { font-size: 14px; }
-  table.agate td.sp canvas { width: calc(100vw - 2 * max(4vw, 16px) - 300px); }
+  table.agate td.sp canvas { width: calc(100vw - 2 * max(4vw, 16px) - 330px); }
 }
 @media (max-width: 560px) {
   /* phones: the sparkline takes all the width the row has left over, rather than a fixed 64 px */
@@ -230,7 +231,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
   /* Safari hands a table's spare width to every column, not to the one marked
      100%, so the line's width is set outright: the page width less the fixed
      columns (220 px) and a little slack. */
-  table.agate td.sp canvas { width: calc(100vw - 2 * max(4vw, 16px) - 244px); max-width: none; }
+  table.agate td.sp canvas { width: calc(100vw - 2 * max(4vw, 16px) - 252px); max-width: none; }
   /* fixed widths around it so every league's sparklines line up */
   /* in pixels, not ems, so nothing about the type can widen them; the
      sparkline gets everything else */
@@ -241,7 +242,7 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
   table.agate td.tm.a { width: 56px; min-width: 56px; }
   table.agate td.tm:not(.a) { width: 68px; min-width: 68px; }
   table.agate td.sc { width: 22px; min-width: 22px; }
-  table.agate td.st { width: 52px; min-width: 52px; white-space: normal; line-height: 1.15; font-size: 12.5px; }
+  table.agate td.st { width: 56px; min-width: 56px; max-width: 56px; white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 12px; }
   .fav span { display: none; }
   td.mu .rec { display: none; }
   table.agate td { padding: 3px 3px; }
