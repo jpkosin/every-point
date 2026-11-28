@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1912">
+<meta name="agate-version" content="2026.11.27-1924">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -441,6 +441,16 @@ td.sp canvas.reveal, .nsp.reveal { animation: reveal 900ms cubic-bezier(.3, .6, 
 canvas.fin { display: block; width: 100%; height: 170px; }
 .thead .fav-btn[aria-pressed="true"] { color: var(--ink); }
 :is(header, .pinbar) .pin .fstar { color: var(--band-gray); font-size: 12px; margin-right: 4px; font-style: normal; }
+/* football: the field */
+.dfield { margin: 12px 0 4px; }
+.dfield .fsit { margin: 0 0 4px; font-size: 16px; }
+.dfield .fsit b { font-weight: 600; font-family: var(--data); }
+canvas.field { display: block; width: 100%; height: 52px; }
+canvas.mfield { display: block; width: 100%; max-width: 72px; height: 9px; margin-top: 3px; }
+.ddrives { margin: 18px 0 6px; }
+.ddrives h3 { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; margin: 0 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); font-family: var(--data); }
+.ddrives h3 .c { letter-spacing: 0; font-style: italic; color: var(--gray); font-weight: 400; margin-left: 6px; font-family: var(--serif); }
+canvas.drives { display: block; width: 100%; }
 .phead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
 .phead .jn { font-size: clamp(64px, 16vw, 112px); line-height: 0.85; font-weight: 500; letter-spacing: -0.03em; }
 .phead .pn { margin: 0; font-style: normal; font-size: clamp(28px, 6vw, 40px); line-height: 1.05; }
@@ -612,6 +622,9 @@ header { view-transition-name: masthead; }
     var c = (e.competitions || [{}])[0] || {}, st = e.status || {}, t = st.type || {}, sit = c.situation || {}, lp = sit.lastPlay || {};
     return { id: e.id, date: e.date, state: t.state, detail: t.shortDetail, clock: st.clock, period: st.period,
       play: lp.text, pv: lp.scoreValue, down: sit.downDistanceText, media: media(c), venue: venue(c),
+      // football: where the ball is. yardLine counts yards from the HOME goal line.
+      sit: sit.yardLine != null && sit.possession ? { yl: +sit.yardLine, down: +sit.down || 0, dist: +sit.distance || 0, poss: String(sit.possession),
+        rz: !!sit.isRedZone, text: sit.downDistanceText || "", short: sit.shortDownDistanceText || "" } : null,
       teams: (c.competitors || []).map(function (x) {
         var tm = x.team || {}, rec = x.records || [];
         return { id: tm.id, abbr: tm.abbreviation, name: tm.shortDisplayName || tm.name, full: tm.displayName, score: x.score, color: tm.color, alt: tm.alternateColor, conf: tm.conferenceId,
@@ -697,8 +710,17 @@ header { view-transition-name: masthead; }
         kind: (pl.scoringType || {}).displayName || ((pl.type || {}).text) || "",
         a: hasScore ? +pl.awayScore : ta, h: hasScore ? +pl.homeScore : th });
     });
+    // Drives (football): where each began and ended, same yard scale as the
+    // situation (yards from the home goal line), and how it ended.
+    var drives = [], dsrc = d.drives || {};
+    (dsrc.previous || []).concat(dsrc.current && !(dsrc.previous || []).some(function (x) { return x.id === dsrc.current.id; }) ? [dsrc.current] : []).forEach(function (dv) {
+      var st0 = dv.start || {}, en = dv.end || {}, tid = String((dv.team || {}).id || "");
+      if (st0.yardLine == null) return;
+      drives.push({ id: dv.id, side: side[tid] ? (side[tid].home ? "home" : "away") : "", a: +st0.yardLine, b: en.yardLine != null ? +en.yardLine : +st0.yardLine,
+        res: dv.shortDisplayResult || dv.displayResult || "", score: !!dv.isScore, desc: dv.description || "", cur: !!(dsrc.current && dv.id === dsrc.current.id) });
+    });
     var st = ((comp.status || {}).type || {});
-    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays };
+    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives };
   }
 
   // ---- Preferences (this viewer only) ------------------------------------
@@ -1476,6 +1498,65 @@ header { view-transition-name: masthead; }
     }
   }
 
+  // ---- Football: the field -----------------------------------------------
+  // The field runs left to right from the visitors' goal line to the home
+  // team's, as the scores do. ESPN counts the ball's place in yards from the
+  // home goal line (yl), so its distance from the left edge is 100 - yl.
+  var GAIN = "#c9a227";   // the line to gain: the one gold on the page, as on TV
+  function fieldGeom(ev) {
+    var t = ev && ev.sit; if (!t) return null;
+    var s = sides(ev), homeBall = String(s.home.id) === t.poss, dir = homeBall ? -1 : 1;   // +1 heads right, at the home goal
+    var ball = 100 - t.yl, gain = t.dist ? Math.max(0, Math.min(100, ball + dir * t.dist)) : null;
+    if (/goal/i.test(t.short || "")) gain = dir > 0 ? 100 : 0;
+    return { ball: ball, gain: gain, dir: dir, off: homeBall ? "home" : "away", rz: t.rz, s: s };
+  }
+  function drawField(canvas, ev, tc, big) {
+    var f = fieldGeom(ev), sc = sizeCanvas(canvas); if (!sc || !f) return;
+    var g = sc.g, W = sc.w, H = sc.h, c = pal(), padX = big ? 2 : 1;
+    var top = big ? 6 : 1, bot = big ? H - 16 : H - 1, X = function (y) { return padX + y / 100 * (W - 2 * padX); }, mid = (top + bot) / 2;
+    // the red zone the offense is driving at, faint; a touch stronger once they're in it
+    var rz0 = f.dir > 0 ? 80 : 0;
+    g.fillStyle = alpha(c.home, f.rz ? 0.14 : 0.06); g.fillRect(X(rz0), top, X(rz0 + 20) - X(rz0), bot - top);
+    g.strokeStyle = c.rule; g.lineWidth = 1;
+    if (big) {
+      g.strokeRect(Math.round(X(0)) + 0.5, Math.round(top) + 0.5, Math.round(X(100) - X(0)) - 1, Math.round(bot - top));
+      for (var y = 10; y < 100; y += 10) { var xx = Math.round(X(y)) + 0.5; g.beginPath(); g.moveTo(xx, y === 50 ? top : bot - 5); g.lineTo(xx, bot); g.stroke(); }
+      g.font = "11px " + DATA; g.fillStyle = c.gray; g.textBaseline = "top"; g.textAlign = "center";
+      [10, 20, 30, 40, 50, 60, 70, 80, 90].forEach(function (y) { g.fillText(String(y <= 50 ? y : 100 - y), X(y), bot + 3); });
+    } else { g.beginPath(); g.moveTo(X(0), Math.round(mid) + 0.5); g.lineTo(X(100), Math.round(mid) + 0.5); g.stroke(); }
+    var col = tc ? tc[f.off] : c.ink;
+    if (f.gain != null) { g.strokeStyle = GAIN; g.lineWidth = big ? 2 : 1.4; g.beginPath(); g.moveTo(Math.round(X(f.gain)) + 0.5, top - (big ? 3 : 0)); g.lineTo(Math.round(X(f.gain)) + 0.5, bot + (big ? 3 : 0)); g.stroke(); }
+    var bx = X(f.ball);
+    if (big) {   // which way they're going
+      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.5; var ax = bx + f.dir * 15;
+      g.beginPath(); g.moveTo(bx + f.dir * 7, mid); g.lineTo(ax, mid); g.stroke();
+      g.beginPath(); g.moveTo(ax + f.dir * 6, mid); g.lineTo(ax, mid - 4); g.lineTo(ax, mid + 4); g.closePath(); g.fill();
+    }
+    g.fillStyle = col; g.beginPath(); g.arc(bx, mid, big ? 5.5 : 2.6, 0, Math.PI * 2); g.fill();
+  }
+  // Every drive, one thin bar each, top to bottom in order: from where it
+  // began to where it ended, in the team's colour, with how it ended.
+  function drawDrives(canvas, drives, tc) {
+    var sc = sizeCanvas(canvas); if (!sc) return;
+    var g = sc.g, W = sc.w, H = sc.h, c = pal(), padL = 44, padR = 44, row = 13, top = 4;
+    var X = function (yl) { return padL + (100 - yl) / 100 * (W - padL - padR); };
+    g.strokeStyle = c.rule; g.lineWidth = 1; g.setLineDash([2, 3]);
+    [0, 50, 100].forEach(function (y) { var xx = Math.round(X(y)) + 0.5; g.beginPath(); g.moveTo(xx, top - 2); g.lineTo(xx, H - 16); g.stroke(); });
+    g.setLineDash([]);
+    g.font = "12px " + SERIF; g.textBaseline = "middle";
+    drives.forEach(function (dv, i) {
+      var y = top + i * row + row / 2, x0 = X(dv.a), x1 = X(dv.b), col = tc && dv.side ? tc[dv.side] : c.ink;
+      if (Math.abs(x1 - x0) < 2) x1 = x0 + (dv.side === "home" ? -2 : 2);
+      g.globalAlpha = dv.cur ? 0.5 : 1; g.fillStyle = col; g.fillRect(Math.min(x0, x1), y - 2.5, Math.abs(x1 - x0), 5); g.globalAlpha = 1;
+      var r = dv.cur ? "now" : (dv.res || "").toLowerCase().replace(/^td$|^touchdown$/, "TD").replace(/^fg$|^field goal$/, "FG").replace("missed fg", "missed FG").replace("end of half", "half").replace("end of game", "end");
+      var right = x1 >= x0;
+      g.fillStyle = dv.score ? c.ink : c.gray; g.font = (dv.cur ? "italic " : "") + (dv.score ? "500 " : "") + "12px " + (dv.score ? DATA : SERIF);
+      g.textAlign = right ? "left" : "right"; g.fillText(r, right ? Math.max(x0, x1) + 5 : Math.min(x0, x1) - 5, y + 0.5);
+    });
+    g.font = "11px " + DATA; g.fillStyle = c.gray; g.textBaseline = "alphabetic";
+    g.textAlign = "left"; g.fillText((drives.awayAb || "") + " goal", X(100) - 0, H - 3);
+    g.textAlign = "right"; g.fillText((drives.homeAb || "") + " goal", X(0), H - 3);
+  }
   // The rug: one tick per score in the last 30 minutes, tall for big scores.
   function drawRug() { drawRugInto(document.getElementById("rug"), true); }
   function drawRugInto(c, withCap) {
@@ -1865,6 +1946,9 @@ header { view-transition-name: masthead; }
     var a = num(s.away.score), hh = num(s.home.score);
     var canvas = h("canvas", { "aria-label": "Margin over the game" });
     revealCanvas(canvas, l.key + ":" + ev.id);
+    // live football: a word-sized field under the clock, the ball and the line to gain
+    var miniField = l.sport === "football" && ev.state === "in" && ev.sit ? h("canvas", { class: "mfield", "aria-label": ev.sit.text }) : null;
+    if (miniField) pending.push(function () { drawField(miniField, ev, tc, false); });
     var jStep = lastStep(hs.pts), before = jStep > 0 ? hs.pts[jStep - 1] : null, markAt = lastMark ? lastMark.at : 0;
     var play = ev.state === "in" ? [ev.down, ev.play].filter(Boolean).join(". ") : "";
     var row = h("tr", { class: "row" + (hot ? " hot" : "") + (isPinned(l, ev) ? " pinned" : ""), tabindex: "0",
@@ -1876,7 +1960,7 @@ header { view-transition-name: masthead; }
       h("td", { class: "sp" }, [canvas]),
       scoreCell("sc h" + (hh > a ? " lead" : ""), hh, before && lastMark && lastMark.side === "home" ? before.h : null, markAt),
       h("td", { class: "tm", title: (s.home.full || "") + (s.home.record ? " (" + dash(s.home.record) + ")" : "") }, [h("span", { class: "sw", style: "background:" + tc.home }), s.home.abbr || "?", favMark(l, ev, "home")]),
-      h("td", { class: "st" + (ev.state === "in" ? " live" : ""), text: (ev.example ? "Example. " : "") + (ev.detail || (ev.state === "post" ? "Final" : "")) }),
+      h("td", { class: "st" + (ev.state === "in" ? " live" : "") }, [(ev.example ? "Example. " : "") + (ev.detail || (ev.state === "post" ? "Final" : "")), miniField]),
       h("td", { class: "lp", title: play || null, text: play })]);
     if (hot) row.querySelectorAll("td").forEach(function (td) { td.style.animationDelay = "-" + ((now - lastMark.at) / 1000).toFixed(2) + "s"; });
     pending.push(function () { if (lastMark && now - lastMark.at < STEP_MS) drawStepping(canvas, l, ev, hs, scale, lastMark.at); else drawMargin(canvas, l, ev, hs, scale, false); });
@@ -2652,7 +2736,7 @@ header { view-transition-name: masthead; }
     var bx = box.data;
     if (!$("dhead")) {
       d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { id: "dhead" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+        h("div", { id: "dhead" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "ddrives" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
       renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
@@ -2691,6 +2775,24 @@ header { view-transition-name: masthead; }
       schedDraw(function () { drawMargin(c, l, ev, hsDraw, leagueScale(l), true, s, selPt); });
     } else { dr.className = ""; dr.style.viewTransitionName = ""; dr.replaceChildren(); }
     renderPlays(l, ev, plays, tc, away, home);
+    // football: the field now, and every drive so far
+    var fe = $("dfield"), fg = ev && state === "in" && fieldGeom(ev);
+    if (fg && l.sport === "football") {
+      var fc = h("canvas", { class: "field", "aria-label": ev.sit.text });
+      var offT = fg.off === "home" ? home : away;
+      fe.className = "dfield";
+      fe.replaceChildren(h("p", { class: "fsit" }, [h("b", { style: tc ? "color:" + tc[fg.off] : null, text: (offT.abbr || "") + " ball" }), " · " + ev.sit.text.replace(/&/g, "and")]), fc);
+      schedDraw(function () { drawField(fc, ev, tc, true); });
+    } else { fe.className = ""; fe.replaceChildren(); }
+    var de = $("ddrives"), drv2 = (bx && bx.drives) || [];
+    if (l.sport === "football" && drv2.length) {
+      var dc = h("canvas", { class: "drives", "aria-label": "Every drive: where it started and ended, and how" });
+      dc.style.height = (drv2.length * 13 + 22) + "px";
+      drv2.awayAb = away.abbr; drv2.homeAb = home.abbr;
+      de.className = "ddrives";
+      de.replaceChildren(h("h3", null, ["Drives", h("span", { class: "c", text: " each bar runs from where the drive began to where it ended" })]), dc);
+      schedDraw(function () { drawDrives(dc, drv2, tc); });
+    } else { de.className = ""; de.replaceChildren(); }
     var note = $("dnote");
     note.className = "dnote" + (box.error ? " err" : "");
     if (box.error) note.textContent = "Couldn't load the box score: " + box.error;

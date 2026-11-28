@@ -1,7 +1,7 @@
 """ScoreCard checks: open the app in a headless Chrome with fake games, and
 fail loudly if a change broke the layout. Run before every update:
 
-    python3 tests/check.py            (serves the repo itself on :8765)
+    python3 tests/check.py            (serves the repo itself on a free port)
 
 Every request to ESPN, Polymarket, Jolpica and Google Fonts is answered
 here with fixed fixtures, so the checks are the same every run and need no
@@ -10,7 +10,10 @@ import asyncio, json, math, os, subprocess, sys, time, datetime as dt
 from playwright.async_api import async_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PORT = 8765
+import socket
+def _free_port():   # a port of its own, so a stray server elsewhere can't stand in for this one
+    with socket.socket() as so: so.bind(("127.0.0.1", 0)); return so.getsockname()[1]
+PORT = _free_port()
 now = time.time(); start = now - 100 * 60
 # Finished games are dated just after midnight today in the browser's time
 # zone (fixed below), so "today only" keeps them whenever the checks run.
@@ -25,11 +28,20 @@ def comp(away, ascore, home, hscore, als, hls):
     return {"competitors": [
         {"homeAway": "away", "score": str(ascore), "team": away, "linescores": [{"value": v} for v in als]},
         {"homeAway": "home", "score": str(hscore), "team": home, "linescores": [{"value": v} for v in hls]}]}
-def game(id, date, state, detail, c, clock=0, period=1):
+def game(id, date, state, detail, c, clock=0, period=1, sit=None):
+    if sit: c = dict(c, situation=sit)
     return {"id": id, "date": iso(date), "status": {"clock": clock, "period": period, "type": {"state": state, "shortDetail": detail}}, "competitions": [c]}
+# Bears ball, 3rd and 7 at the Detroit 34 (ESPN counts yards from the home goal line)
+SIT401 = {"down": 3, "distance": 7, "yardLine": 34, "possession": "3", "isRedZone": False, "downDistanceText": "3rd & 7 at DET 34", "shortDownDistanceText": "3rd & 7", "possessionText": "DET 34"}
+def DRV(id, tm, a, b, res, score=False):
+    return {"id": id, "team": {"id": tm}, "start": {"yardLine": a}, "end": {"yardLine": b}, "shortDisplayResult": res, "isScore": score, "description": ""}
+SUM401 = {"header": {"competitions": [{"status": {"type": {"state": "in", "shortDetail": "7:00 - 3rd"}}, "competitors": [{"homeAway": "away", "team": {"id": "3"}, "score": "17"}, {"homeAway": "home", "team": {"id": "8"}, "score": "20"}]}]},
+    "boxscore": {"players": []},
+    "drives": {"previous": [DRV("d1", "3", 75, 0, "TD", True), DRV("d2", "8", 25, 52, "PUNT"), DRV("d3", "3", 80, 3, "FG", True), DRV("d4", "8", 30, 100, "TD", True)],
+               "current": DRV("d5", "3", 70, 34, "")}}
 
 NFL = {"events": [
-    game("401", start, "in", "7:00 - 3rd", comp(team("3", "CHI", "Chicago Bears", "0b162a", "c83803"), 17, team("8", "DET", "Detroit Lions", "0076b6"), 20, [7, 10], [13, 7]), 420, 3),
+    game("401", start, "in", "7:00 - 3rd", comp(team("3", "CHI", "Chicago Bears", "0b162a", "c83803"), 17, team("8", "DET", "Detroit Lions", "0076b6"), 20, [7, 10], [13, 7]), 420, 3, SIT401),
     game("402", midnight, "post", "Final", comp(team("21", "PHI", "Philadelphia Eagles", "06424d"), 24, team("6", "DAL", "Dallas Cowboys", "002a5c"), 21, [7, 7, 3, 7], [3, 14, 0, 4]))]}
 # wide college names: four letters and a long display name
 NCAAM = {"events": [
@@ -76,6 +88,7 @@ async def route(r):
     if "football/nfl/scoreboard" in u: body = NFL
     elif "mens-college-basketball/scoreboard" in u: body = NCAAM
     elif "summary?event=402" in u: body = SUM402
+    elif "summary?event=401" in u: body = SUM401
     elif "/teams/8/schedule" in u: body = SCHED8
     elif "/standings" in u and "group=" in u: body = STAND_GROUP
     elif "football/nfl/standings" in u: body = STAND_ALL
@@ -85,6 +98,7 @@ async def route(r):
     elif "polymarket" in u: body = []
     await r.fulfill(status=200, body=json.dumps(body), headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"})
 
+DRAWN_JS = "(sel) => { const c = document.querySelector(sel); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }"
 FAILS = []
 def check(ok, what):
     print(("  ok    " if ok else "  FAIL  ") + what)
@@ -96,6 +110,9 @@ async def page(b, w, hsh="", mobile=False):
     await pg.route("**/*", route)
     await pg.goto("http://localhost:%d/index.html%s" % (PORT, hsh))
     await pg.wait_for_timeout(1800)
+    if os.environ.get("SHOTS"):   # SHOTS=1 saves what each check saw, to /tmp/check-*.png
+        await pg.wait_for_timeout(800)
+        await pg.screenshot(path="/tmp/check-%d%s.png" % (w, hsh.replace("#", "-")), full_page=True)
     return pg, errs
 
 async def main():
@@ -124,6 +141,8 @@ async def main():
                 drawn = await pg.evaluate("""[...document.querySelectorAll('tr.row td.sp canvas')].every(c => { if (!c.width) return false;
                     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })""")
                 check(drawn, "every margin line is drawn")
+                mf = await pg.evaluate("""(() => { const c = document.querySelector('canvas.mfield'); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })()""")
+                check(mf, "live football shows its little field under the clock")
                 await pg.close()
             print("Game page, phone")
             pg, errs = await page(b, 393, "#game-ncaam-502", True)
@@ -143,6 +162,17 @@ async def main():
             except Exception:
                 big = False
             check(big, "the big margin chart is drawn")
+            await pg.close()
+            print("Live football game, phone")
+            pg, errs = await page(b, 393, "#game-nfl-401", True)
+            check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
+            for sel, what in [("canvas.field", "the field strip is drawn"), ("canvas.drives", "the drive chart is drawn")]:
+                try:
+                    await pg.wait_for_function("(%s)('%s')" % (DRAWN_JS, sel), timeout=8000); ok = True
+                except Exception: ok = False
+                check(ok, what)
+            txt = await pg.evaluate("(document.querySelector('.fsit') || {}).textContent || ''")
+            check("CHI ball" in txt and "3rd and 7" in txt, "the field says whose ball and the down (%r)" % txt)
             await pg.close()
             for hsh, sel, what in [("#team-nfl-8", ".tsched tr", "team page"), ("#standings-nfl", ".tstand tr", "league standings"), ("#driver-hadjar", "canvas.fin", "F1 driver page")]:
                 print(what.capitalize())
