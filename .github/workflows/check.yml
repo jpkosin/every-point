@@ -24,7 +24,7 @@ jobs:
   deploy:
     needs: check
     runs-on: ubuntu-latest
-    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url || steps.d1.outputs.page_url }}" }
     steps:
       - id: mode
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -35,6 +35,13 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with: { path: "." }
       - if: steps.mode.outputs.type == 'workflow'
+        id: d1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      # GitHub sometimes can't find a just-uploaded site for a few seconds: wait, try once more
+      - if: steps.mode.outputs.type == 'workflow' && steps.d1.outcome == 'failure'
+        run: sleep 30
+      - if: steps.mode.outputs.type == 'workflow' && steps.d1.outcome == 'failure'
         id: d
         uses: actions/deploy-pages@v4
       - if: steps.mode.outputs.type != 'workflow'
