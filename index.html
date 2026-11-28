@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1929">
+<meta name="agate-version" content="2026.11.27-2000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -452,6 +452,30 @@ canvas.mfield { display: block; width: 100%; max-width: 72px; height: 9px; margi
 .ddrives h3 { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; margin: 0 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); font-family: var(--data); }
 .ddrives h3 .c { letter-spacing: 0; font-style: italic; color: var(--gray); font-weight: 400; margin-left: 6px; font-family: var(--serif); }
 canvas.drives { display: block; width: 100%; }
+/* basketball */
+.dfouls { margin: 10px 0 2px; font-size: 14px; }
+.dfouls .frow { display: grid; grid-template-columns: 3.4em auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 2px 0; }
+.dfouls b { font-family: var(--data); font-weight: 600; }
+.dfouls .dots { display: inline-flex; gap: 4px; } .dfouls .dots i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--gray); display: inline-block; }
+.dfouls .dots i.on { border-color: transparent; }
+.dfouls em { color: var(--gray); } .dfouls em.bonus { color: var(--home); }
+.dfouls .to { color: var(--gray); font-style: italic; text-align: right; }
+.leadline { margin: 4px 0 0; font-size: 14px; color: var(--ink); font-family: var(--data); }
+:is(.dduel, .dshots, .dhot) { margin: 18px 0 6px; }
+:is(.dduel, .dshots, .dhot) h3 { font-weight: 500; font-size: 14px; letter-spacing: 0.08em; margin: 0 0 8px; padding-bottom: 3px; border-bottom: 1px solid var(--ink); font-family: var(--data); }
+:is(.dduel, .dshots, .dhot) h3 .c { letter-spacing: 0; font-style: italic; color: var(--gray); font-weight: 400; margin-left: 6px; font-family: var(--serif); }
+.drows { display: grid; gap: 5px; }
+.drow { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) 9.5em minmax(0, 1fr) 3.2em; align-items: center; gap: 6px; font-size: 14px; }
+.drow .dv { font-family: var(--data); color: var(--gray); } .drow .dv.up { color: var(--ink); font-weight: 600; } .drow .dv.a { text-align: right; }
+.drow .dl { text-align: center; font-style: italic; color: var(--gray); }
+.drow .bar { height: 6px; display: flex; } .drow .bar.a { justify-content: flex-end; } .drow .bar i { display: block; height: 100%; }
+@media (max-width: 560px) { .drow { grid-template-columns: 2.9em minmax(0, 1fr) 7.2em minmax(0, 1fr) 2.9em; font-size: 13px; } }
+.courts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.courtf { margin: 0; } canvas.court { display: block; width: 100%; aspect-ratio: 50 / 47; }
+.courtf figcaption { font-size: 14px; margin-top: 4px; font-family: var(--data); } .courtf figcaption b { font-weight: 600; }
+.hrows { display: grid; gap: 4px; }
+.hrow { display: grid; grid-template-columns: 9em minmax(0, 1fr) 2.4em; gap: 10px; align-items: center; font-size: 15px; }
+.hrow b { font-family: var(--data); font-weight: 600; text-align: right; } canvas.hot { display: block; width: 100%; height: 22px; }
 .phead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
 .phead .jn { font-size: clamp(64px, 16vw, 112px); line-height: 0.85; font-weight: 500; letter-spacing: -0.03em; }
 .phead .pn { margin: 0; font-style: normal; font-size: clamp(28px, 6vw, 40px); line-height: 1.05; }
@@ -720,8 +744,43 @@ header { view-transition-name: masthead; }
       drives.push({ id: dv.id, side: side[tid] ? (side[tid].home ? "home" : "away") : "", a: +st0.yardLine, b: en.yardLine != null ? +en.yardLine : +st0.yardLine,
         res: dv.shortDisplayResult || dv.displayResult || "", score: !!dv.isScore, desc: dv.description || "", cur: !!(dsrc.current && dv.id === dsrc.current.id) });
     });
+    // Play by play (basketball lists every play; football's sit inside its drives).
+    var all = (d.plays || []).slice();
+    (dsrc.previous || []).concat(dsrc.current ? [dsrc.current] : []).forEach(function (dv) { (dv.plays || []).forEach(function (pp) { all.push(pp); }); });
+    var clockSec = function (cv) { var m = /^(\d+):(\d+)(?:\.(\d+))?$/.exec(String((cv || {}).displayValue || "")); return m ? +m[1] * 60 + +m[2] : (cv && cv.value != null ? +cv.value : null); };
+    var at = function (pp) { var per = +((pp.period || {}).number) || 1, ck = clockSec(pp.clock); return ck == null ? null : progress(l, { state: "in", period: per, clock: ck, detail: "" }); };
+    var sideOf = function (pp) { var t = side[String((pp.team || {}).id || "")]; return t ? (t.home ? "home" : "away") : ""; };
+    // ESPN's own win chance, play by play: home's chance minus the visitors'.
+    var byId = {}; all.forEach(function (pp) { byId[pp.id] = pp; });
+    var espn = [];
+    (d.winprobability || []).forEach(function (w) { var pp = byId[w.playId], pr = pp && at(pp); if (pr != null) espn.push({ p: pr, s: 2 * (+w.homeWinPercentage || 0) - 1 + (+w.tiePercentage || 0) }); });
+    espn.sort(function (a, b) { return a.p - b.p; });
+    var bb = null;
+    if (l.sport === "basketball" && (d.plays || []).length) {
+      bb = { shots: [], series: [], pts: {}, fouls: {}, tos: {}, stats: {} };
+      var names = {};
+      teams.forEach(function (t) { (t.groups || []).forEach(function (g) { (g.players || []).forEach(function (pl) { if (pl.id) names[pl.id] = { n: pl.s || pl.n, side: t.home ? "home" : "away" }; }); }); });
+      d.plays.forEach(function (pp) {
+        var sd = sideOf(pp), ty = ((pp.type || {}).text || ""), per = +((pp.period || {}).number) || 1, pr = at(pp);
+        var c = pp.coordinate || {}, ft = /free throw/i.test(ty);
+        if (pp.shootingPlay && !ft && c.x >= 0 && c.x <= 50 && c.y >= -5 && c.y <= 47 && sd)
+          bb.shots.push({ x: +c.x, y: +c.y, made: !!pp.scoringPlay, three: +pp.pointsAttempted === 3 || /three point/i.test(pp.text || ""), side: sd });
+        if (pp.scoringPlay && pr != null) {
+          bb.series.push({ p: pr, a: +pp.awayScore, h: +pp.homeScore, side: sd });
+          var who = ((pp.participants || [])[0] || {}).athlete; if (who && who.id) (bb.pts[who.id] = bb.pts[who.id] || []).push({ p: pr, v: +pp.scoreValue || 0 });
+        }
+        if (/foul/i.test(ty) && !/offensive|technical|double/i.test(ty) && sd) (bb.fouls[per] = bb.fouls[per] || { home: 0, away: 0 })[sd]++;
+        if (/timeout/i.test(ty) && sd && !/official/i.test(ty)) bb.tos[sd] = (bb.tos[sd] || 0) + 1;
+      });
+      bb.names = names;
+      ((d.boxscore || {}).teams || []).forEach(function (t) {
+        var sd = side[String((t.team || {}).id)]; if (!sd) return;
+        var m = {}; (t.statistics || []).forEach(function (x) { m[x.name] = x.displayValue; });
+        bb.stats[sd.home ? "home" : "away"] = m;
+      });
+    }
     var st = ((comp.status || {}).type || {});
-    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives };
+    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb };
   }
 
   // ---- Preferences (this viewer only) ------------------------------------
@@ -1450,6 +1509,15 @@ header { view-transition-name: masthead; }
       g.fillStyle = c.gray; g.fillText("0", pad.l - 6, mid);
       g.fillStyle = c.away; g.fillText("+" + scale, pad.l - 6, Y(-scale));
     }
+    // Runs: a faint wash in the scoring team's colour, labelled along the top.
+    if (big && hs.runs && hs.runs.length) {
+      hs.runs.forEach(function (r) {
+        var x0 = X(r.p0), x1 = Math.max(X(r.p1), x0 + 3), col = r.side === "home" ? c.home : c.away;
+        g.fillStyle = alpha(col, 0.08); g.fillRect(x0, pad.t, x1 - x0, H - pad.t - pad.b);
+        g.font = "12px " + DATA; g.fillStyle = col; g.textAlign = "center"; g.textBaseline = "top";
+        g.fillText((r.side === "home" ? s2 && s2.home.abbr : s2 && s2.away.abbr || "") + " " + r.pts + "–0", (x0 + x1) / 2, pad.t + 1);
+      });
+    }
     // The win-chance shadow, behind everything: home's chance minus the
     // visitors', full height at certainty.
     var od = odds.get(l.key + ":" + ev.id);
@@ -1467,6 +1535,12 @@ header { view-transition-name: masthead; }
         g.fillStyle = alpha(c.ink, big ? 0.07 : 0.08); g.fill(band);
         g.strokeStyle = alpha(c.ink, big ? 0.28 : 0.22); g.lineWidth = big ? 1 : 0.8; g.stroke(sp);
       }
+    }
+    // ESPN's model, a fine dark line on the same chance scale as the band.
+    if (big && hs.espn) {
+      g.strokeStyle = alpha(c.ink, 0.55); g.lineWidth = 0.9; g.beginPath(); var on = false;
+      hs.espn.forEach(function (q) { if (q.p > last.p + 1e-6) return; var x = X(q.p), y = mid - Math.max(-1, Math.min(1, q.s)) * amp; if (!on) { g.moveTo(x, y); on = true; } else g.lineTo(x, y); });
+      g.stroke();
     }
     if (pts.length < 2) return;
     var path = new Path2D(), prevM = 0;
@@ -1499,6 +1573,54 @@ header { view-transition-name: masthead; }
     }
   }
 
+  // ---- Basketball -------------------------------------------------------
+  // Runs: points scored by one side with nothing back, RUN_MIN or more;
+  // the three biggest are marked on the margin chart.
+  var RUN_MIN = 8;
+  function findRuns(series) {
+    var ev2 = (series || []).slice().sort(function (x, y) { return x.p - y.p; }), runs = [], cur = null, pa = 0, ph = 0;
+    ev2.forEach(function (q) {
+      var da = q.a - pa, dh = q.h - ph; pa = q.a; ph = q.h;
+      var sd = dh > 0 && da <= 0 ? "home" : da > 0 && dh <= 0 ? "away" : null, pts = sd === "home" ? dh : da;
+      if (!sd) { cur = null; return; }
+      if (cur && cur.side === sd) { cur.pts += pts; cur.p1 = q.p; }
+      else { if (cur && cur.pts >= RUN_MIN) runs.push(cur); cur = { side: sd, pts: pts, p0: q.p, p1: q.p }; }
+    });
+    if (cur && cur.pts >= RUN_MIN) runs.push(cur);
+    return runs.sort(function (x, y) { return y.pts - x.pts; }).slice(0, 3);
+  }
+  // A half court in feet as ESPN measures it: 50 wide, the hoop at (25, 0),
+  // baseline 4.75 behind it. Makes are filled, misses are rings.
+  function drawCourt(canvas, shots, col) {
+    var sc = sizeCanvas(canvas); if (!sc) return;
+    var g = sc.g, W = sc.w, H = sc.h, c = pal(), k = W / 50, Y0 = 4.75;
+    var X = function (x) { return x * k; }, Y = function (y) { return (y + Y0) * k; };
+    g.strokeStyle = c.rule; g.lineWidth = 1;
+    g.strokeRect(0.5, 0.5, W - 1, H - 1);
+    g.strokeRect(X(17), 0.5, X(33) - X(17), Y(14.25));
+    g.beginPath(); g.arc(X(25), Y(14.25), 6 * k, 0, Math.PI); g.stroke();
+    g.beginPath(); g.arc(X(25), Y(0), 0.75 * k, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(X(22), Y(-0.75)); g.lineTo(X(28), Y(-0.75)); g.stroke();
+    var cy = Math.sqrt(23.75 * 23.75 - 22 * 22), a0 = Math.atan2(cy, -22), a1 = Math.atan2(cy, 22);
+    g.beginPath(); g.moveTo(X(3), 0); g.lineTo(X(3), Y(cy)); g.arc(X(25), Y(0), 23.75 * k, a0, a1, true); g.lineTo(X(47), 0); g.stroke();
+    var r = Math.max(2.2, W / 85);
+    shots.forEach(function (sh) {
+      var x = X(sh.x), y = Y(Math.min(sh.y, 47 - Y0));
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+      if (sh.made) { g.fillStyle = col; g.fill(); } else { g.strokeStyle = alpha(col, 0.75); g.lineWidth = 1.1; g.stroke(); }
+    });
+  }
+  // Each top scorer's points as the game went: a rising step line, steep when hot.
+  function drawHot(canvas, seq, total, max, col, endP) {
+    var sc = sizeCanvas(canvas); if (!sc) return;
+    var g = sc.g, W = sc.w, H = sc.h, c = pal(), span = Math.max(1, endP);
+    var X = function (p) { return 2 + p / span * (W - 6); }, Y = function (v) { return H - 2 - v / max * (H - 4); };
+    g.strokeStyle = c.rule; g.lineWidth = 1; g.beginPath(); g.moveTo(0, Math.round(H - 2) + 0.5); g.lineTo(W, Math.round(H - 2) + 0.5); g.stroke();
+    g.strokeStyle = col; g.lineWidth = 1.4; g.beginPath(); g.moveTo(X(0), Y(0)); var v = 0;
+    seq.forEach(function (q) { g.lineTo(X(q.p), Y(v)); v += q.v; g.lineTo(X(q.p), Y(v)); });
+    g.lineTo(X(endP), Y(v)); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.arc(X(endP), Y(v), 2.2, 0, Math.PI * 2); g.fill();
+  }
   // ---- Football: the field -----------------------------------------------
   // The field runs left to right from the visitors' goal line to the home
   // team's, as the scores do. ESPN counts the ball's place in yards from the
@@ -2699,6 +2821,65 @@ header { view-transition-name: masthead; }
     return parts.length ? h("span", { class: "rec", text: parts.join(" · ") }) : "";
   }
   var tablesKey = "";
+  function renderBasketball(l, ev, bx, tc, away, home, state) {
+    var bb = bx && bx.bb, ids = ["dfouls", "dduel", "dshots", "dhot"];
+    if (!bb || l.sport !== "basketball") { ids.forEach(function (i) { var e = $(i); e.className = ""; e.replaceChildren(); }); return; }
+    var col = function (sd) { return tc ? tc[sd] : pal().ink; }, ab = function (sd) { return (sd === "home" ? home : away).abbr || ""; };
+    // fouls this period, and who's in the bonus; timeouts used
+    var fe = $("dfouls"), per = ev && ev.period;
+    if (state === "in" && per) {
+      var halves = l.n === 2, thr = halves ? 7 : 5, f = bb.fouls[per] || { home: 0, away: 0 };
+      var row = function (sd) {
+        var n = f[sd], opp = sd === "home" ? "away" : "home", dots = [];
+        for (var i = 0; i < Math.max(thr, n); i++) dots.push(h("i", { class: i < n ? "on" : null, style: i < n ? "background:" + col(sd) : null }));
+        return h("div", { class: "frow" }, [h("b", { style: "color:" + col(sd), text: ab(sd) }), h("span", { class: "dots", title: n + " team fouls this " + (halves ? "half" : "quarter") }, dots),
+          n >= thr ? h("em", { class: "bonus", text: ab(opp) + " in the bonus" }) : h("em", { text: n + (n === 1 ? " foul" : " fouls") }),
+          h("span", { class: "to", text: (bb.tos[sd] || 0) + " timeouts used" })]);
+      };
+      fe.className = "dfouls"; fe.replaceChildren(row("away"), row("home"));
+    } else { fe.className = ""; fe.replaceChildren(); }
+    // the stat duel
+    var A = bb.stats.away, Hm = bb.stats.home, de = $("dduel");
+    if (A && Hm) {
+      var ROWS = [["field goals", "fieldGoalPct", "%"], ["threes", "threePointFieldGoalPct", "%"], ["free throws", "freeThrowPct", "%"], ["rebounds", "totalRebounds"],
+        ["assists", "assists"], ["turnovers", "totalTurnovers"], ["points in the paint", "pointsInPaint"], ["fast-break points", "fastBreakPoints"]];
+      var rows = ROWS.filter(function (r) { return A[r[1]] != null && Hm[r[1]] != null; }).map(function (r) {
+        var a = parseFloat(A[r[1]]) || 0, hv = parseFloat(Hm[r[1]]) || 0, max = r[2] ? 100 : Math.max(a, hv, 1), u = r[2] || "";
+        return h("div", { class: "drow" }, [h("span", { class: "dv a" + (a > hv ? " up" : ""), text: A[r[1]] + u }),
+          h("span", { class: "bar a" }, [h("i", { style: "width:" + (a / max * 100).toFixed(1) + "%;background:" + col("away") })]),
+          h("span", { class: "dl", text: r[0] }),
+          h("span", { class: "bar h" }, [h("i", { style: "width:" + (hv / max * 100).toFixed(1) + "%;background:" + col("home") })]),
+          h("span", { class: "dv h" + (hv > a ? " up" : ""), text: Hm[r[1]] + u })]);
+      });
+      de.className = "dduel"; de.replaceChildren(h("h3", null, ["Team stats", h("span", { class: "c", text: " " + ab("away") + " left, " + ab("home") + " right; percentages against 100, counts against the larger" })]), h("div", { class: "drows" }, rows));
+    } else { de.className = ""; de.replaceChildren(); }
+    // shot charts
+    var se = $("dshots");
+    if (bb.shots.length) {
+      var court = function (sd) {
+        var cv = h("canvas", { class: "court", "aria-label": ab(sd) + " shots: filled made, rings missed" }), st2 = bb.stats[sd] || {};
+        var mine = bb.shots.filter(function (x) { return x.side === sd; });
+        schedDraw(function () { drawCourt(cv, mine, col(sd)); });
+        var line = [st2["fieldGoalsMade-fieldGoalsAttempted"] ? "FG " + dash(st2["fieldGoalsMade-fieldGoalsAttempted"]) : null,
+          st2["threePointFieldGoalsMade-threePointFieldGoalsAttempted"] ? "3s " + dash(st2["threePointFieldGoalsMade-threePointFieldGoalsAttempted"]) : null].filter(Boolean).join(" · ");
+        return h("figure", { class: "courtf" }, [cv, h("figcaption", null, [h("b", { style: "color:" + col(sd), text: ab(sd) }), " " + line])]);
+      };
+      se.className = "dshots"; se.replaceChildren(h("h3", null, ["Shots", h("span", { class: "c", text: " filled made, rings missed; free throws not shown" })]), h("div", { class: "courts" }, [court("away"), court("home")]));
+    } else { se.className = ""; se.replaceChildren(); }
+    // who's hot: the two top scorers on each side, points through the game
+    var he = $("dhot"), endP = ev ? progress(l, ev) : 1, lines = [];
+    Object.keys(bb.pts).forEach(function (id) { var nm = bb.names[id]; if (!nm) return; var tot = bb.pts[id].reduce(function (x, q) { return x + q.v; }, 0); lines.push({ id: id, nm: nm.n, side: nm.side, tot: tot, seq: bb.pts[id].sort(function (x, y) { return x.p - y.p; }) }); });
+    var top = [].concat(lines.filter(function (x) { return x.side === "away"; }).sort(function (x, y) { return y.tot - x.tot; }).slice(0, 2), lines.filter(function (x) { return x.side === "home"; }).sort(function (x, y) { return y.tot - x.tot; }).slice(0, 2));
+    if (top.length) {
+      var mx = Math.max.apply(null, top.map(function (x) { return x.tot; }).concat([1]));
+      if (!(endP > 0)) endP = Math.max.apply(null, top.map(function (x) { return x.seq[x.seq.length - 1].p; }));
+      he.className = "dhot"; he.replaceChildren(h("h3", null, ["Top scorers", h("span", { class: "c", text: " points through the game, one scale; steep is hot" })]),
+        h("div", { class: "hrows" }, top.map(function (x) {
+          var cv = h("canvas", { class: "hot" }); schedDraw(function () { drawHot(cv, x.seq, x.tot, mx, col(x.side), endP); });
+          return h("div", { class: "hrow" }, [h("a", { class: "plink", href: "#player-" + l.key + "-" + x.id, onclick: function () { backTo = location.hash; }, text: x.nm }), cv, h("b", { style: "color:" + col(x.side), text: String(x.tot) })]);
+        })));
+    } else { he.className = ""; he.replaceChildren(); }
+  }
   var sel = { key: "", i: -1 };
   // The scoring plays, newest last, as the game read: when, who, what, the
   // score after. Tap one to find it on the chart above; tap again to clear.
@@ -2737,7 +2918,7 @@ header { view-transition-name: masthead; }
     var bx = box.data;
     if (!$("dhead")) {
       d.append(h("button", { class: "back", type: "button", text: "← All games", onclick: function () { location.hash = ""; } }),
-        h("div", { id: "dhead" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "ddrives" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
+        h("div", { id: "dhead" }), h("div", { id: "dfouls" }), h("div", { id: "dfield" }), h("div", { id: "dwhere" }), h("div", { id: "driver" }), h("div", { id: "ddrives" }), h("div", { id: "dduel" }), h("div", { id: "dshots" }), h("div", { id: "dhot" }), h("div", { id: "dplays" }), h("div", { class: "markets", id: "dmarkets" }), h("p", { class: "dnote", id: "dnote" }), h("div", { class: "teams-box", id: "dtables" }));
       renderMarkets();
     }
     var s = ev ? sides(ev) : null, bt = (bx && bx.teams) || [];
@@ -2766,13 +2947,30 @@ header { view-transition-name: masthead; }
     // When the game wasn't watched live, the scoring plays draw it exactly.
     var hsDraw = hs;
     if (ev && hs && plays.length && !hs.pts.some(function (q) { return q.t; })) hsDraw = playsHist(l, ev, plays, hs.marks) || hs;
+    var bb = bx && bx.bb;
+    if (ev && hs && bb && bb.series.length && !hs.pts.some(function (q) { return q.t; })) {
+      // basketball: every basket, exact, when the game wasn't watched live
+      var ser = bb.series.slice().sort(function (x, y) { return x.p - y.p; }), pts0 = [{ p: 0, a: 0, h: 0 }];
+      ser.forEach(function (q) { pts0.push({ p: Math.max(q.p, pts0[pts0.length - 1].p), a: q.a, h: q.h }); });
+      var ss = sides(ev), aa = num(ss.away.score), hh2 = num(ss.home.score);
+      if (aa != null && hh2 != null) pts0.push({ p: Math.max(progress(l, ev), pts0[pts0.length - 1].p), a: aa, h: hh2 });
+      hsDraw = { pts: pts0, marks: hs.marks };
+    }
+    var runs = bb ? findRuns(bb.series) : [];
+    if (hsDraw) hsDraw = Object.assign({}, hsDraw, { espn: bx && bx.espn && bx.espn.length > 1 ? bx.espn : null, runs: runs });
     var chosen = sel.i >= 0 && plays[sel.i] ? plays[sel.i] : null;
     var selPt = chosen ? { p: playProgress(l, chosen), m: chosen.h - chosen.a, side: chosen.side } : null;
     if (ev && hs && state !== "pre") {
       dr.className = "driver"; vtName(dr, "vt-chart");
       var c = h("canvas", { "aria-label": "Margin over the game; home lead above the line" });
       var odc = odds.get(l.key + ":" + ev.id);
-      dr.replaceChildren(c, odc && odc.shadow && odc.shadow.length > 1 ? h("p", { class: "cap", text: "Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing." }) : "");
+      var capBits = [];
+      if (odc && odc.shadow && odc.shadow.length > 1) capBits.push("Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing.");
+      if (hsDraw && hsDraw.espn) capBits.push("Fine line: ESPN's own win chance after every play, on the same scale.");
+      if (runs.length) capBits.push("Shaded: runs of " + RUN_MIN + " or more points unanswered.");
+      var lead = bb && bb.stats.home && bb.stats.away ? [bb.stats.away.largestLead && "largest lead " + (away.abbr || "") + " " + bb.stats.away.largestLead + ", " + (home.abbr || "") + " " + bb.stats.home.largestLead,
+        bb.stats.home.leadChanges != null ? bb.stats.home.leadChanges + (+bb.stats.home.leadChanges === 1 ? " lead change" : " lead changes") : null].filter(Boolean).join(" · ") : "";
+      dr.replaceChildren(c, lead ? h("p", { class: "leadline", text: lead }) : "", capBits.length ? h("p", { class: "cap", text: capBits.join(" ") }) : "");
       schedDraw(function () { drawMargin(c, l, ev, hsDraw, leagueScale(l), true, s, selPt); });
     } else { dr.className = ""; dr.style.viewTransitionName = ""; dr.replaceChildren(); }
     renderPlays(l, ev, plays, tc, away, home);
@@ -2794,6 +2992,7 @@ header { view-transition-name: masthead; }
       de.replaceChildren(h("h3", null, ["Drives", h("span", { class: "c", text: " each bar runs from where the drive began to where it ended" })]), dc);
       schedDraw(function () { drawDrives(dc, drv2, tc); });
     } else { de.className = ""; de.replaceChildren(); }
+    renderBasketball(l, ev, bx, tc, away, home, state);
     var note = $("dnote");
     note.className = "dnote" + (box.error ? " err" : "");
     if (box.error) note.textContent = "Couldn't load the box score: " + box.error;

@@ -52,6 +52,38 @@ NCAAM = {"events": [
 
 def P(per, clk, tm, text, a, h):
     return {"period": {"number": per}, "clock": {"value": clk, "displayValue": "%d:%02d" % (clk // 60, clk % 60)}, "team": {"id": tm}, "text": text, "awayScore": a, "homeScore": h, "scoringType": {"displayName": "Touchdown"}}
+# A basketball game, play by play: a 10-0 home run in the middle, shots with
+# court spots, fouls, a timeout, ESPN's win chance, and team totals.
+def _bball():
+    plays, a, h, n, wp = [], 0, 0, 0, []
+    seq = [("away", 2, 8, 10, "4001"), ("home", 3, 3, 2, "4101"), ("away", 3, 40, 20, "4002"), ("home", 2, 25, 1, "4102"), ("home", 2, 24, 3, "4101"),
+           ("home", 3, 47, 2, "4102"), ("home", 3, 2, 2, "4101"), ("away", 2, 20, 8, "4001")]
+    for i, (sd, v, x, y, who) in enumerate(seq):
+        n += 1
+        if sd == "away": a += v
+        else: h += v
+        tid = "2449" if sd == "away" else "23"
+        plays.append({"id": "p%d" % n, "type": {"text": "Jump Shot"}, "text": "shot", "shootingPlay": True, "scoringPlay": True, "scoreValue": v, "pointsAttempted": v,
+                      "coordinate": {"x": x, "y": y}, "team": {"id": tid}, "period": {"number": 1}, "clock": {"displayValue": "%d:%02d" % (19 - i * 2, 30)},
+                      "awayScore": a, "homeScore": h, "participants": [{"athlete": {"id": who}}]})
+        wp.append({"playId": "p%d" % n, "homeWinPercentage": 0.4 + 0.05 * i})
+        n += 1
+        plays.append({"id": "p%d" % n, "type": {"text": "Jump Shot"}, "text": "miss", "shootingPlay": True, "scoringPlay": False, "scoreValue": 0, "pointsAttempted": 2,
+                      "coordinate": {"x": 50 - x, "y": y + 3}, "team": {"id": "23" if sd == "away" else "2449"}, "period": {"number": 1}, "clock": {"displayValue": "%d:%02d" % (19 - i * 2, 10)},
+                      "awayScore": a, "homeScore": h, "participants": [{"athlete": {"id": "4102"}}]})
+    for k in range(3):
+        plays.append({"id": "f%d" % k, "type": {"text": "Personal Foul"}, "text": "foul", "team": {"id": "23"}, "period": {"number": 2}, "clock": {"displayValue": "10:00"}})
+    plays.append({"id": "t1", "type": {"text": "Full Timeout"}, "text": "timeout", "team": {"id": "2449"}, "period": {"number": 2}, "clock": {"displayValue": "9:00"}})
+    stats = lambda fg, tp: [{"name": "fieldGoalsMade-fieldGoalsAttempted", "displayValue": fg}, {"name": "fieldGoalPct", "displayValue": "45"},
+                            {"name": "threePointFieldGoalsMade-threePointFieldGoalsAttempted", "displayValue": tp}, {"name": "threePointFieldGoalPct", "displayValue": "33"},
+                            {"name": "totalRebounds", "displayValue": "20"}, {"name": "totalTurnovers", "displayValue": "6"}, {"name": "largestLead", "displayValue": "8"}, {"name": "leadChanges", "displayValue": "3"}]
+    pl = lambda id, nm: {"athlete": {"id": id, "displayName": nm, "shortName": nm}, "stats": ["10"]}
+    return {"header": {"competitions": [{"status": {"type": {"state": "in", "shortDetail": "14:01 - 2nd"}}, "competitors": [{"homeAway": "away", "team": {"id": "2449"}, "score": "38"}, {"homeAway": "home", "team": {"id": "23"}, "score": "31"}]}]},
+            "boxscore": {"players": [{"team": {"id": "2449", "abbreviation": "NDSU", "displayName": "North Dakota State"}, "statistics": [{"labels": ["PTS"], "athletes": [pl("4001", "A. Away"), pl("4002", "B. Away")]}]},
+                                     {"team": {"id": "23", "abbreviation": "SJSU", "displayName": "San Jose State"}, "statistics": [{"labels": ["PTS"], "athletes": [pl("4101", "C. Home"), pl("4102", "D. Home")]}]}],
+                         "teams": [{"team": {"id": "2449"}, "statistics": stats("14-30", "4-12")}, {"team": {"id": "23"}, "statistics": stats("12-31", "3-11")}]},
+            "plays": plays, "winprobability": wp}
+SUM501 = _bball()
 SUM402 = {"header": {"competitions": [{"status": {"type": {"state": "post", "shortDetail": "Final"}}, "competitors": [{"homeAway": "away", "team": {"id": "21"}, "score": "24"}, {"homeAway": "home", "team": {"id": "6"}, "score": "21"}]}]},
     "boxscore": {"players": []},
     "scoringPlays": [P(1, 600, "21", "Jalen Hurts 12 yd run", 7, 0), P(2, 700, "6", "CeeDee Lamb 34 yd pass", 7, 10), P(3, 400, "21", "Field goal", 10, 10), P(4, 40, "21", "A.J. Brown 22 yd pass", 17, 10)]}
@@ -90,6 +122,7 @@ async def route(r):
     elif "mens-college-basketball/scoreboard" in u: body = NCAAM
     elif "summary?event=402" in u: body = SUM402
     elif "summary?event=401" in u: body = SUM401
+    elif "summary?event=501" in u: body = SUM501
     elif "/teams/8/schedule" in u: body = SCHED8
     elif "/standings" in u and "group=" in u: body = STAND_GROUP
     elif "football/nfl/standings" in u: body = STAND_ALL
@@ -177,6 +210,24 @@ async def main():
                 check(ok, what)
             txt = await pg.evaluate("(document.querySelector('.fsit') || {}).textContent || ''")
             check("CHI ball" in txt and "3rd and 7" in txt, "the field says whose ball and the down (%r)" % txt)
+            await pg.close()
+            print("Live basketball game, phone")
+            pg, errs = await page(b, 393, "#game-ncaam-501", True)
+            check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
+            for sel, what in [("canvas.court", "the shot charts are drawn"), ("canvas.hot", "the top scorers' lines are drawn"), ("#driver canvas", "the margin chart is drawn")]:
+                try:
+                    await pg.wait_for_function("(%s)('%s')" % (DRAWN_JS, sel), timeout=8000); ok = True
+                except Exception: ok = False
+                check(ok, what)
+            n = await pg.evaluate("[document.querySelectorAll('canvas.court').length, document.querySelectorAll('.dduel .drow').length, document.querySelectorAll('.hrow').length, document.querySelectorAll('.dfouls .frow').length]")
+            check(n[0] == 2, "a court for each team (%d)" % n[0])
+            check(n[1] >= 4, "team stats compared side by side (%d rows)" % n[1])
+            check(n[2] == 4, "two top scorers a side (%d)" % n[2])
+            check(n[3] == 2, "fouls and timeouts for each team (%d)" % n[3])
+            cap = await pg.evaluate("(document.querySelector('#driver .cap') || {}).textContent || ''")
+            check("runs of" in cap and "ESPN" in cap, "the chart notes the runs and ESPN's line (%r)" % cap[:60])
+            ov = await pg.evaluate("document.documentElement.scrollWidth - innerWidth")
+            check(ov <= 0, "the game page can't be pushed sideways (%dpx)" % ov)
             await pg.close()
             for hsh, sel, what in [("#team-nfl-8", ".tsched tr", "team page"), ("#standings-nfl", ".tstand tr", "league standings"), ("#driver-hadjar", "canvas.fin", "F1 driver page")]:
                 print(what.capitalize())
