@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2021">
+<meta name="agate-version" content="2026.11.27-2028">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -415,6 +415,12 @@ td.sp canvas.reveal, .nsp.reveal, .rv.reveal { animation: reveal 900ms cubic-bez
 @keyframes reveal-td { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 -2px 0); } }
 .rv.rv-fade.unseen { clip-path: none; opacity: 0; transform: translateY(8px); }
 .rv.rv-fade.reveal { animation: reveal-fade 800ms cubic-bezier(.3, .6, .2, 1) both; }
+/* team stats: each bar grows out from the zero by the label, row after row */
+.rv.rv-bars.unseen { clip-path: none; } .rv.rv-bars.reveal { animation: none; }
+.rv-bars.unseen .bar i { transform: scaleX(0); }
+.rv-bars.reveal .bar i { animation: grow 800ms cubic-bezier(.3, .6, .2, 1) both; animation-delay: calc(var(--rvd, 0ms) + var(--i, 0) * 70ms); }
+.drow .bar.a i { transform-origin: right center; } .drow .bar.h i { transform-origin: left center; }
+@keyframes grow { from { transform: scaleX(0); } to { transform: none; } }
 @keyframes reveal-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 /* a new score rolls in like an odometer: the old number up and out, the new up from below */
 .roll { display: inline-block; height: 1.15em; line-height: 1.15em; overflow: hidden; vertical-align: bottom; }
@@ -963,8 +969,9 @@ header { view-transition-name: masthead; }
     var a = 0, hh = 0;
     for (var i = 0; i < done; i++) {
       var da = num(la[i]) || 0, dh = num(lh[i]) || 0, pend = (i + 1) / l.n;
-      if (dh) { hh += dh; hs.pts.push({ p: pend, a: a, h: hh }); }
-      if (da) { a += da; hs.pts.push({ p: pend, a: a, h: hh }); }
+      // both sides' quarter at once: adding one then the other drew a
+      // false spike at every period break
+      if (dh || da) { hh += dh; a += da; hs.pts.push({ p: pend, a: a, h: hh }); }
     }
     return hs;
   }
@@ -1684,7 +1691,13 @@ header { view-transition-name: masthead; }
   }
   // Every drive, one thin bar each, top to bottom in order: from where it
   // began to where it ended, in the team's colour, with how it ended.
-  function drawDrives(canvas, drives, tc) {
+  var DRV_MS = 420;
+  function drivesMs(n) { return Math.min(70, 1100 / Math.max(1, n)) * n + DRV_MS; }
+  // el: ms since the chart came into view; each drive's bar then runs from
+  // where it began toward where it ended, one after another.
+  function drawDrives(canvas, drives, tc, el) {
+    if (el == null) el = 1e9;
+    var gap = Math.min(70, 1100 / Math.max(1, drives.length));
     var sc = sizeCanvas(canvas); if (!sc) return;
     var g = sc.g, W = sc.w, H = sc.h, c = pal(), padL = 44, padR = 44, row = 13, top = 4;
     var X = function (yl) { return padL + (100 - yl) / 100 * (W - padL - padR); };
@@ -1695,6 +1708,11 @@ header { view-transition-name: masthead; }
     drives.forEach(function (dv, i) {
       var y = top + i * row + row / 2, x0 = X(dv.a), x1 = X(dv.b), col = tc && dv.side ? tc[dv.side] : c.ink;
       if (Math.abs(x1 - x0) < 2) x1 = x0 + (dv.side === "home" ? -2 : 2);
+      var k = Math.max(0, Math.min(1, (el - i * gap) / DRV_MS));
+      if (k <= 0) return;
+      k = 1 - Math.pow(1 - k, 3);
+      var xe = x0 + (x1 - x0) * k;
+      if (k < 1) { g.globalAlpha = dv.cur ? 0.5 : 1; g.fillStyle = col; g.fillRect(Math.min(x0, xe), y - 2.5, Math.abs(xe - x0), 5); g.globalAlpha = 1; return; }
       g.globalAlpha = dv.cur ? 0.5 : 1; g.fillStyle = col; g.fillRect(Math.min(x0, x1), y - 2.5, Math.abs(x1 - x0), 5); g.globalAlpha = 1;
       var r = dv.cur ? "now" : (dv.res || "").toLowerCase().replace(/^td$|^touchdown$/, "TD").replace(/^fg$|^field goal$/, "FG").replace("missed fg", "missed FG").replace("end of half", "half").replace("end of game", "end");
       var right = x1 >= x0;
@@ -2052,13 +2070,15 @@ header { view-transition-name: masthead; }
       } else {
         // gone off screen: next time it comes back, it draws on again
         seenAt.delete(k); c.classList.remove("reveal"); c.classList.add("unseen");
+        if (c._redraw) c._redraw();
       }
     });
   }, { rootMargin: "0px 0px -6% 0px" }) : null;
   function showReveal(c, k) {
     var t0 = seenAt.get(k), now = Date.now();
+    if (c._redraw) { c.classList.remove("unseen"); c._redraw(); return; }   // draws its own motion
     c.classList.remove("unseen");
-    if (now < t0 + RV_MS) { c.classList.add("reveal"); c.style.animationDelay = (t0 - now) + "ms"; } else c.classList.remove("reveal");
+    if (now < t0 + (c._rvMs || RV_MS)) { c.classList.add("reveal"); c.style.animationDelay = (t0 - now) + "ms"; c.style.setProperty("--rvd", (t0 - now) + "ms"); } else c.classList.remove("reveal");
   }
   function revealCanvas(c, k, mode) {
     if (!io || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -2068,6 +2088,12 @@ header { view-transition-name: masthead; }
     io.observe(c);
   }
   // The index where the margin last changed: the newest score's step.
+  // How long since this chart came into view (0 while it hasn't): for
+  // charts that animate their own marks instead of being uncovered.
+  function sinceSeen(c) {
+    if (!io || matchMedia("(prefers-reduced-motion: reduce)").matches) return 1e9;
+    var t0 = seenAt.get(c.dataset.k); return t0 == null ? 0 : Math.max(0, Date.now() - t0);
+  }
   function lastStep(pts) { for (var i = pts.length - 1; i > 0; i--) if (pts[i].h - pts[i].a !== pts[i - 1].h - pts[i - 1].a) return i; return -1; }
   var STEP_MS = 700;
   // After a score, the new step rises (or falls) into place instead of jumping.
@@ -2869,15 +2895,16 @@ header { view-transition-name: masthead; }
     if (A && Hm) {
       var ROWS = [["field goals", "fieldGoalPct", "%"], ["threes", "threePointFieldGoalPct", "%"], ["free throws", "freeThrowPct", "%"], ["rebounds", "totalRebounds"],
         ["assists", "assists"], ["turnovers", "totalTurnovers"], ["points in the paint", "pointsInPaint"], ["fast-break points", "fastBreakPoints"]];
-      var rows = ROWS.filter(function (r) { return A[r[1]] != null && Hm[r[1]] != null; }).map(function (r) {
+      var rows = ROWS.filter(function (r) { return A[r[1]] != null && Hm[r[1]] != null; }).map(function (r, ri) {
         var a = parseFloat(A[r[1]]) || 0, hv = parseFloat(Hm[r[1]]) || 0, max = r[2] ? 100 : Math.max(a, hv, 1), u = r[2] || "";
-        return h("div", { class: "drow" }, [h("span", { class: "dv a" + (a > hv ? " up" : ""), text: A[r[1]] + u }),
+        return h("div", { class: "drow", style: "--i:" + ri }, [h("span", { class: "dv a" + (a > hv ? " up" : ""), text: A[r[1]] + u }),
           h("span", { class: "bar a" }, [h("i", { style: "width:" + (a / max * 100).toFixed(1) + "%;background:" + col("away") })]),
           h("span", { class: "dl", text: r[0] }),
           h("span", { class: "bar h" }, [h("i", { style: "width:" + (hv / max * 100).toFixed(1) + "%;background:" + col("home") })]),
           h("span", { class: "dv h" + (hv > a ? " up" : ""), text: Hm[r[1]] + u })]);
       });
       de.className = "dduel"; de.replaceChildren(h("h3", null, ["Team stats", h("span", { class: "c", text: " " + ab("away") + " left, " + ab("home") + " right; percentages against 100, counts against the larger" })]), h("div", { class: "drows" }, rows));
+      var drs = de.lastChild; drs._rvMs = 800 + rows.length * 70; revealCanvas(drs, rvKey("duel"), "bars");
     } else { de.className = ""; de.replaceChildren(); }
     // shot charts
     var se = $("dshots");
@@ -3021,7 +3048,13 @@ header { view-transition-name: masthead; }
       drv2.awayAb = away.abbr; drv2.homeAb = home.abbr;
       de.className = "ddrives";
       de.replaceChildren(h("h3", null, ["Drives", h("span", { class: "c", text: " each bar runs from where the drive began to where it ended" })]), dc);
-      schedDraw(function () { drawDrives(dc, drv2, tc); }); revealCanvas(dc, rvKey("drives"), "td");
+      dc._redraw = function () {
+        cancelAnimationFrame(dc._raf);
+        var el = sinceSeen(dc); drawDrives(dc, drv2, tc, el);
+        if (el > 0 && el < drivesMs(drv2.length)) dc._raf = requestAnimationFrame(dc._redraw);
+      };
+      dc.dataset.k = rvKey("drives");
+      schedDraw(dc._redraw); revealCanvas(dc, dc.dataset.k);
     } else { de.className = ""; de.replaceChildren(); }
     renderBasketball(l, ev, bx, tc, away, home, state);
     var note = $("dnote");
