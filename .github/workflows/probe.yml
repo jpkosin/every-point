@@ -7,18 +7,23 @@ jobs:
     steps:
       - shell: python
         run: |
-          import json, urllib.request, collections
-          get = lambda u: json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
-          S = "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/"
-          sb = get(S + "scoreboard"); ev = [e for e in sb["events"] if e["status"]["type"]["state"] in ("post", "in")]
-          e = ev[0]; print("GAME", e["name"], json.dumps(e["status"])[:300])
-          d = get(S + "summary?event=" + e["id"])
-          known = {"Face Off", "Stoppage", "Shot", "Hit", "Blocked", "Giveaway", "Missed", "Goal", "Takeaway", "Period Start", "Period End", "End of Game"}
-          pl = d["plays"]
-          for p in [p for p in pl if (p.get("type") or {}).get("text") not in known][:6]: print("PEN", json.dumps(p)[:700])
-          print("PLAYKEYS", sorted(set(k for p in pl for k in p)))
-          for p in [p for p in pl if (p.get("type") or {}).get("text") in ("Blocked", "Goal")][:4]: print("BG", json.dumps({k: p.get(k) for k in ("type", "text", "team", "strength", "clock", "period", "participants")})[:600])
-          print("HDR", [(c["homeAway"], c["team"]["id"], c["team"].get("name")) for c in d["header"]["competitions"][0]["competitors"]])
-          t = d["header"]["competitions"][0]["competitors"][0]["team"]["id"]
-          n = get(S + "news?team=" + t + "&limit=5"); print("TEAMNEWS", t, [a.get("headline") for a in n.get("articles", [])])
-          n2 = get(S + "news?limit=5"); print("LEAGUENEWS", [a.get("headline") for a in n2.get("articles", [])])
+          import json, urllib.request
+          def get(u):
+              r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Origin": "https://jpkosin.github.io"}), timeout=30)
+              return json.loads(r.read()), dict(r.headers)
+          J = "https://api.jolpi.ca/ergast/f1/"
+          d, h = get(J + "2026.json"); rs = d["MRData"]["RaceTable"]["Races"]; print("ROUNDS", [(r["round"], r["raceName"], r["date"]) for r in rs[-4:]])
+          d, h = get(J + "2026/20/laps.json?limit=2000"); m = d["MRData"]; print("LAPS total", m["total"], "limit", m["limit"], "offset", m["offset"], "ACAO", h.get("Access-Control-Allow-Origin"), {k: v for k, v in h.items() if "ate" in k.lower() or "limit" in k.lower()})
+          L = m["RaceTable"]["Races"][0]["Laps"]; print("nlaps in page", len(L), [len(x["Timings"]) for x in L][:5], json.dumps(L[0]["Timings"][:2]))
+          d, h = get(J + "2026/20/laps.json?limit=100&offset=100"); L = d["MRData"]["RaceTable"]["Races"][0]["Laps"]; print("page2", [(x["number"], len(x["Timings"])) for x in L][:6])
+          d, h = get(J + "2026/20/pitstops.json?limit=100"); m = d["MRData"]; print("PITS total", m["total"], json.dumps(m["RaceTable"]["Races"][0]["PitStops"][:2]))
+          d, h = get(J + "2026/20/results.json"); r = d["MRData"]["RaceTable"]["Races"][0]["Results"]; print("RES laps", r[0]["laps"], r[0].get("Time"), r[0]["status"])
+          d, h = get(J + "2026/driverstandings.json"); s = d["MRData"]["StandingsTable"]["StandingsLists"][0]; print("STAND round", s["round"], [(x["Driver"]["code"], x["points"]) for x in s["DriverStandings"][:5]])
+          try:
+              d, h = get(J + "2026/21/results.json"); print("QATAR results", len(d["MRData"]["RaceTable"]["Races"]))
+              d, h = get(J + "2026/21/sprint.json"); print("QATAR sprint", len(d["MRData"]["RaceTable"]["Races"]))
+          except Exception as e: print("Q err", e)
+          for u in ["https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard"]:
+              d, h = get(u); e = d["events"][0]; print("ESPN", e["name"], [ (c.get("type",{}).get("abbreviation"), c.get("status",{}).get("type",{}).get("state")) for c in e["competitions"]])
+              c = [c for c in e["competitions"] if c.get("status",{}).get("type",{}).get("state") != "pre"]
+              if c: print("ESPN COMP keys", list(c[-1].keys())); print(json.dumps(c[-1]["competitors"][0])[:800])
