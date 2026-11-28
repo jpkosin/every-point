@@ -1,6 +1,6 @@
 {
-  "name": "ScoreCard",
-  "short_name": "ScoreCard",
+  "name": "Margin Line",
+  "short_name": "Margin Line",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

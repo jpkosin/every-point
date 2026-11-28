@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ScoreCard</title>
+<title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2000">
+<meta name="agate-version" content="2026.11.27-2010">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ScoreCard">
+<meta name="apple-mobile-web-app-title" content="Margin Line">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="manifest" href="manifest.json?v=sc">
 <link rel="apple-touch-icon" href="sc-180.png?v=f">
@@ -132,7 +132,7 @@ header .rcap { display: flex; justify-content: space-between; font-size: 12px; f
 header .rcap b { font-style: normal; color: var(--band-ink); font-weight: 500; }
 header button { -webkit-app-region: no-drag; }
 .app header { padding-left: 64px; }
-/* ScoreCard set tight, as a wordmark: the whole word drawn in by 3.5% of an
+/* Margin Line set tight, as a wordmark: the whole word drawn in by 3.5% of an
    em, with a hair of space (a tenth of an em) where the red Score meets Card. */
 h1 .sc-s { color: var(--band-red); margin-right: 0.1em; }
 h1 { font-kerning: normal; font-feature-settings: "kern" 1, "liga" 1; }
@@ -517,7 +517,7 @@ header { view-transition-name: masthead; }
 <div class="wrap">
   <header>
     <div class="band">
-      <div class="row"><h1><span class="sc-s">Score</span>Card</h1><div class="livec" id="livec"></div></div>
+      <div class="row"><h1><span class="sc-s">Margin</span>Line</h1><div class="livec" id="livec"></div></div>
       <div class="pin" id="pin" role="button" tabindex="0" hidden></div>
       <div class="rugbox"><canvas id="rug" aria-label="Every score across all leagues in the last 30 minutes"></canvas></div>
       <div class="rcap"><span id="rug-cap">every score, last 30 min</span><span>now</span></div>
@@ -3253,7 +3253,7 @@ header { view-transition-name: masthead; }
   // to the app (and every 10 minutes) ask for version.json, bypassing caches,
   // and reload when a newer version is published.
   var VERSION = (document.querySelector('meta[name="agate-version"]') || {}).content || "dev";
-  $("foot").textContent = "ScoreCard, version " + VERSION + (STANDALONE ? ", running as a home-screen app" : ", running in the browser") + ". Scores from ESPN, markets from Polymarket, F1 results from Jolpica.";
+  $("foot").textContent = "Margin Line, version " + VERSION + (STANDALONE ? ", running as a home-screen app" : ", running in the browser") + ". Scores from ESPN, markets from Polymarket, F1 results from Jolpica.";
   async function checkVersion() {
     if (VERSION === "dev") return;
     try {
