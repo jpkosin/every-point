@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1834">
+<meta name="agate-version" content="2026.11.27-1837">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -226,10 +226,14 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
   /* fixed widths around it so every league's sparklines line up */
   /* in pixels, not ems, so nothing about the type can widen them; the
      sparkline gets everything else */
-  table.agate td.tm.a { width: 54px; min-width: 54px; }
-  table.agate td.tm:not(.a) { width: 66px; min-width: 66px; }
+  /* Source Serif runs wider than Garamond: a size smaller and tighter here,
+     so four-letter names fit their columns and nothing pushes on the line */
+  table.agate td.tm { font-size: 15px; letter-spacing: 0.01em; }
+  table.agate td.sc { font-size: 17px; }
+  table.agate td.tm.a { width: 56px; min-width: 56px; }
+  table.agate td.tm:not(.a) { width: 68px; min-width: 68px; }
   table.agate td.sc { width: 22px; min-width: 22px; }
-  table.agate td.st { width: 56px; min-width: 56px; white-space: normal; line-height: 1.15; font-size: 13px; }
+  table.agate td.st { width: 52px; min-width: 52px; white-space: normal; line-height: 1.15; font-size: 12.5px; }
   .fav span { display: none; }
   td.mu .rec { display: none; }
   table.agate td { padding: 3px 3px; }
