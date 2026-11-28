@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2010">
+<meta name="agate-version" content="2026.11.27-2013">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -310,6 +310,7 @@ table.plays-t tr.pl:hover td, table.plays-t tr.pl.on td { background: color-mix(
 .where .wk b { font-weight: 400; font-style: italic; color: var(--gray); margin-right: 6px; }
 .driver .cap { margin: 2px 0 0; font-size: 14px; color: var(--gray); font-style: italic; }
 .driver canvas { display: block; width: 100%; height: 200px; }
+@media (max-width: 560px) { .driver canvas.bleed { width: 100vw; margin-left: calc(50% - 50vw); height: 230px; } }
 .dnote { margin: 0; color: var(--gray); font-style: italic; }
 .dnote.err { color: var(--home); }
 .teams-box { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px; align-items: start; }
@@ -1485,8 +1486,17 @@ header { view-transition-name: masthead; }
     if (!s) return;
     var c = Object.assign({}, pal(), ev.teams && ev.teams.length ? teamColors(ev) : {}), g = s.g, W = s.w, H = s.h;
     var pad = big ? { l: 34, r: 74, t: 10, b: 24 } : { l: 1, r: 4, t: 2, b: 2 };
+    // Phone: the chart runs edge to edge; the scale sits in the page gutter
+    // and the final margin is written above the line's end, not beside it.
+    var bleed = big && canvas.classList.contains("bleed") && W >= window.innerWidth - 2;
+    if (bleed) pad = { l: Math.round(Math.max(window.innerWidth * 0.04, 16)) + 22, r: 10, t: 22, b: 24 };
     var mid = pad.t + (H - pad.t - pad.b) / 2, amp = (H - pad.t - pad.b) / 2;
-    var pts = hs.pts, last = pts[pts.length - 1] || { p: 0, a: 0, h: 0 };
+    // A lone sample far off both neighbours, which agree, is a feed blip.
+    var pts = hs.pts.filter(function (q, i, A) {
+      if (!i || i === A.length - 1) return true;
+      var m = q.h - q.a, m0 = A[i - 1].h - A[i - 1].a, m1 = A[i + 1].h - A[i + 1].a;
+      return !(Math.abs(m0 - m1) <= 3 && Math.abs(m - m0) >= 8 && Math.abs(m - m1) >= 8);
+    }), last = pts[pts.length - 1] || { p: 0, a: 0, h: 0 };
     var span = Math.max(1, last.p);
     var X = function (p) { return pad.l + (p / span) * (W - pad.l - pad.r); };
     var Y = function (m) { return mid - Math.max(-1, Math.min(1, m / scale)) * amp; };
@@ -1569,7 +1579,13 @@ header { view-transition-name: masthead; }
     if (big && s2) {
       g.font = "15px " + DATA; g.textAlign = "left"; g.textBaseline = "middle";
       g.fillStyle = prevM > 0 ? c.home : prevM < 0 ? c.away : c.gray;
-      g.fillText(prevM === 0 ? "Tied" : (prevM > 0 ? s2.home.abbr : s2.away.abbr) + " +" + Math.abs(prevM), endX + 8, endY);
+      var endLab = prevM === 0 ? "Tied" : (prevM > 0 ? s2.home.abbr : s2.away.abbr) + " +" + Math.abs(prevM);
+      if (endX + 8 + g.measureText(endLab).width <= W - 2) g.fillText(endLab, endX + 8, endY);
+      else {
+        // no room to the right: above the end (below it when the end is high)
+        g.textAlign = "right";
+        g.fillText(endLab, endX + 2, endY - pad.t < 14 ? endY + 14 : endY - 14);
+      }
     }
   }
 
@@ -2948,8 +2964,9 @@ header { view-transition-name: masthead; }
     var hsDraw = hs;
     if (ev && hs && plays.length && !hs.pts.some(function (q) { return q.t; })) hsDraw = playsHist(l, ev, plays, hs.marks) || hs;
     var bb = bx && bx.bb;
-    if (ev && hs && bb && bb.series.length && !hs.pts.some(function (q) { return q.t; })) {
-      // basketball: every basket, exact, when the game wasn't watched live
+    if (ev && hs && bb && bb.series.length) {
+      // basketball: every basket, exact. Always preferred to the live samples,
+      // which spike when ESPN's quarter totals briefly don't add up.
       var ser = bb.series.slice().sort(function (x, y) { return x.p - y.p; }), pts0 = [{ p: 0, a: 0, h: 0 }];
       ser.forEach(function (q) { pts0.push({ p: Math.max(q.p, pts0[pts0.length - 1].p), a: q.a, h: q.h }); });
       var ss = sides(ev), aa = num(ss.away.score), hh2 = num(ss.home.score);
@@ -2962,7 +2979,7 @@ header { view-transition-name: masthead; }
     var selPt = chosen ? { p: playProgress(l, chosen), m: chosen.h - chosen.a, side: chosen.side } : null;
     if (ev && hs && state !== "pre") {
       dr.className = "driver"; vtName(dr, "vt-chart");
-      var c = h("canvas", { "aria-label": "Margin over the game; home lead above the line" });
+      var c = h("canvas", { class: "bleed", "aria-label": "Margin over the game; home lead above the line" });
       var odc = odds.get(l.key + ":" + ev.id);
       var capBits = [];
       if (odc && odc.shadow && odc.shadow.length > 1) capBits.push("Grey band: Polymarket's chance of each side winning as the game went on, home above the line, visitors below; the full height is a sure thing.");

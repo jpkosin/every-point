@@ -199,6 +199,8 @@ async def main():
             except Exception:
                 big = False
             check(big, "the big margin chart is drawn")
+            r = await pg.evaluate("(() => { const r = document.querySelector('#driver canvas').getBoundingClientRect(); return [r.left, r.right, innerWidth, document.documentElement.scrollWidth] })()")
+            check(abs(r[0]) <= 1 and abs(r[1] - r[2]) <= 1 and r[3] <= r[2], "the margin chart runs edge to edge, no sideways scroll (%d-%d of %d)" % (r[0], r[1], r[2]))
             await pg.close()
             print("Live football game, phone")
             pg, errs = await page(b, 393, "#game-nfl-401", True)
