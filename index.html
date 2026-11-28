@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2121">
+<meta name="agate-version" content="2026.11.27-2132">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -842,7 +842,8 @@ header { view-transition-name: masthead; }
     arts.filter(function (a) { return a.type === "Recap"; }).forEach(function (a) { addNews(a, true); });
     if (d.article && d.article.headline) addNews(d.article, true);
     arts.sort(function (x, y) { return Date.parse(y.published || 0) - Date.parse(x.published || 0); }).forEach(function (a) { addNews(a, false); });
-    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb, news: news.slice(0, 5) };
+    return { state: st.state, detail: st.shortDetail, teams: teams, plays: plays, drives: drives, espn: espn, bb: bb, news: news.slice(0, 5), nick: nick,
+      tid: (comp.competitors || []).map(function (c) { return String((c.team || {}).id || ""); }).filter(Boolean) };
   }
 
   // ---- Preferences (this viewer only) ------------------------------------
@@ -2979,26 +2980,122 @@ header { view-transition-name: masthead; }
         })));
     } else { he.className = ""; he.replaceChildren(); }
   }
-  // The game's headlines run across the top like a news ticker; tap one to
-  // read it. Repeated once so the loop is seamless.
+  // ---- Headlines ---------------------------------------------------------
+  // While a game is on, the app writes its own headlines from the game
+  // itself (marked Live); then each team's own ESPN news; at the final,
+  // ESPN's recap leads.
+  var teamNews = new Map();   // league:team -> { at, list, busy }
+  function teamNewsFor(l, id, nre) {
+    var k = l.key + ":" + id, tn = teamNews.get(k);
+    if (!tn || (Date.now() - tn.at > 10 * 60e3 && !tn.busy)) {
+      tn = tn || { at: 0, list: [] }; tn.busy = true; tn.at = Date.now(); teamNews.set(k, tn);
+      getJSON(BASE + l.paths[0].split("?")[0] + "/news?team=" + encodeURIComponent(id) + "&limit=8").then(function (d) {
+        tn.list = ((d && d.articles) || []).filter(function (a) {
+          return a.type !== "Media" && a.headline && (!nre || nre.test(a.headline + " " + (a.description || ""))) &&
+            Date.now() - (Date.parse(a.published || "") || 0) < 4 * 86400e3;
+        }).map(function (a) { return { t: a.headline, href: ((a.links || {}).web || {}).href || null, at: Date.parse(a.published || "") || 0 }; });
+      }).catch(function () {}).then(function () { tn.busy = false; if (view && !view.team && !view.player) renderDetail(); });
+    }
+    return tn.list;
+  }
+  function nickOf(t, bx) {
+    var n = bx && bx.nick, i = t && t.home ? 1 : 0;
+    return (n && n.length === 2 && n[t && t.home ? 1 : 0]) || t.name || t.abbr || "";
+  }
+  function timePhrase(l, ev) {
+    var d = String(ev.detail || ""), m = d.match(/^\s*([\d:.]+)\s*-\s*(.+)$/);
+    if (/half/i.test(d) && !m) return "at the half";
+    if (/^end/i.test(d)) return "at the " + d.toLowerCase().replace(/^end of (the )?/, "end of the ");
+    if (/^(top|bot|bottom|mid|middle)\b/i.test(d)) { var bm = d.match(/^(\w+)\s+(.+)$/); return "in the " + bm[1].toLowerCase().replace("bot", "bottom").replace("bottomtom", "bottom").replace("mid", "middle").replace("middledle", "middle") + " of the " + bm[2]; }
+    if (l.sport === "soccer") return /'/.test(d) ? "in the " + d.replace(/'.*$/, "") + "th minute" : "";
+    if (m) {
+      var per = m[2], last = (+ev.period || 0) >= (l.n || 4);
+      if (last && ev.clock != null && ev.clock <= 120 && ev.clock > 0) return "with " + m[1] + " left";
+      return /OT/.test(per) ? "in " + per : "in the " + per;
+    }
+    return "";
+  }
+  function liveHeadlines(l, ev, bx, hs, away, home) {
+    if (!ev || ev.state !== "in") return [];
+    var out = [], A = nickOf(away, bx), H = nickOf(home, bx), sa = num(away.score) || 0, sh = num(home.score) || 0, when = timePhrase(l, ev);
+    var unit = l.sport === "basketball" ? "point" : l.sport === "football" ? "point" : l.sport === "baseball" ? "run" : "goal";
+    var big = l.sport === "basketball" ? 10 : l.sport === "football" ? 10 : 2;
+    var words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+    var n2w = function (n) { return unit !== "point" && n < 10 ? words[n] : String(n); };
+    var w = function (t) { return (t + (when ? " " + when : "")).replace(/\s+/g, " "); };
+    if (sa === sh) out.push(w(A + " and " + H + " tied at " + sa));
+    else {
+      var lead = sh > sa ? "home" : "away", L = lead === "home" ? H : A, T = lead === "home" ? A : H, m = Math.abs(sh - sa);
+      var worst = 0;   // the leader's deepest hole, from the margin line
+      ((hs && hs.pts) || []).forEach(function (q) { var d = lead === "home" ? q.a - q.h : q.h - q.a; if (d > worst) worst = d; });
+      if (worst >= big) out.push(w(L + " erase " + n2w(worst) + "-" + unit + " deficit, lead by " + n2w(m)));
+      else if (m >= big * 1.5) out.push(w(L + " pull away from the " + T + ", up " + n2w(m)));
+      else out.push(w(L + " lead " + T + " " + Math.max(sa, sh) + "–" + Math.min(sa, sh)));
+    }
+    var bb = bx && bx.bb;
+    if (bb && bb.series && bb.series.length) {   // a run still going
+      var ser = bb.series.slice().sort(function (x, y) { return x.p - y.p; }), cur = null, pa = 0, ph = 0;
+      ser.forEach(function (q) {
+        var da = q.a - pa, dh = q.h - ph; pa = q.a; ph = q.h;
+        var sd = dh > 0 && da <= 0 ? "home" : da > 0 && dh <= 0 ? "away" : null;
+        if (!sd) { cur = null; return; }
+        if (cur && cur.side === sd) cur.pts += sd === "home" ? dh : da; else cur = { side: sd, pts: sd === "home" ? dh : da };
+      });
+      if (cur && cur.pts >= RUN_MIN) out.push((cur.side === "home" ? H : A) + " on a " + cur.pts + "–0 run");
+      var lc = bb.stats && bb.stats.home && +bb.stats.home.leadChanges;
+      if (lc >= 8) out.push(lc + " lead changes and counting");
+    }
+    if (l.sport === "football" && ev.sit && ev.sit.text) {
+      var fg = fieldGeom(ev), off = fg && fg.off === "home" ? H : fg ? A : "", st = ev.sit.short || "", at = ev.sit.text.replace(/^.*\bat\b\s*/i, "");
+      if (off && st) out.push(off + (ev.sit.rz ? " in the red zone, " + st.replace(/&/g, "and") + " at the " + at : " face " + st.replace(/&/g, "and") + " at the " + at));
+    }
+    return out.map(function (t) { return { t: t, live: true }; });
+  }
+  function gameNews(l, ev, bx, hs, away, home) {
+    var live = liveHeadlines(l, ev, bx, hs, away, home);
+    var base = (bx && bx.news) || [], recap = base.filter(function (x) { return x.recap; });
+    var nick = (bx && bx.nick) || [], nre = nick.length ? new RegExp("\\b(" + nick.map(function (x) { return x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }).join("|") + ")\\b", "i") : null;
+    var more = base.filter(function (x) { return !x.recap; });
+    if (!ev || !ev.example) ((bx && bx.tid) || []).forEach(function (id) { more = more.concat(teamNewsFor(l, id, nre)); });
+    var seen = {}, rest = more.filter(function (x) { if (seen[x.t]) return false; seen[x.t] = 1; return true; }).sort(function (x, y) { return (y.at || 0) - (x.at || 0); });
+    return live.concat(recap, rest).slice(0, 7);
+  }
+
+  // The headlines run across the top like a news ticker; tap one to read
+  // it. Repeated once so the loop is seamless. When only the live lines
+  // change (a new score), they're rewritten in place, so it never restarts.
   var newsKey = "";
   function renderNews(list) {
     var el = $("dnews"); if (!el) return;
     var key = list.map(function (x) { return x.t; }).join("|");
-    if (key === newsKey && el.childNodes.length) return;   // unchanged: let it keep running
+    if (key === newsKey && el.childNodes.length) return;
     newsKey = key;
-    if (!list.length) { el.replaceChildren(); return; }
+    if (el.classList.contains("moving") && el.childNodes.length && list.length) {
+      // only the live lines changed: rewrite them where they are
+      var runs = el.querySelectorAll(".run"), old = runs[0] ? runs[0].children : [];
+      var same = old.length === list.length && list.every(function (x, i) { return x.live ? old[i].classList.contains("live") : old[i].textContent.indexOf(x.t) >= 0; });
+      if (same) {
+        runs.forEach(function (r) { list.forEach(function (x, i) { if (x.live) r.children[i].lastChild.textContent = x.t; }); });
+        return;
+      }
+    }
+    buildNews(el, list);
+  }
+  function buildNews(el, list) {
+    if (!list.length) { el.replaceChildren(); el.classList.remove("moving"); return; }
     function run() {
       return h("div", { class: "run" }, list.map(function (x) {
         var t = x.href ? h("a", { href: x.href, target: "_blank", rel: "noopener", text: x.t }) : h("span", { text: x.t });
-        return h("span", { class: "hl" + (x.recap ? " recap" : "") }, [x.recap ? h("span", { class: "kick", text: "Recap" }) : "", t]);
+        var kick = x.live ? "Live" : x.recap ? "Recap" : "";
+        return h("span", { class: "hl" + (x.recap ? " recap" : "") + (x.live ? " live" : "") }, [kick ? h("span", { class: "kick", text: kick }) : "", t]);
       }));
     }
     var track = h("div", { class: "track" }, [run()]);
     el.replaceChildren(h("div", { class: "win" }, [track]));
+    el.classList.remove("moving");
     requestAnimationFrame(function () {
       var w = track.firstChild.scrollWidth;
-      if (w <= el.clientWidth || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.classList.remove("moving"); return; }
+      if (w <= el.clientWidth || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       var copy = run(); copy.setAttribute("aria-hidden", "true"); copy.querySelectorAll("a").forEach(function (a) { a.tabIndex = -1; });
       track.append(copy);
       track.style.animationDuration = Math.round(w / 55) + "s";   // about 55 px a second
@@ -3055,7 +3152,6 @@ header { view-transition-name: masthead; }
     var home = s ? s.home : bt.filter(function (t) { return t.home; })[0] || {};
     var state = (ev && ev.state) || (bx && bx.state), detail = (ev && ev.detail) || (bx && bx.detail) || "";
     var tc = ev ? teamColors(ev) : null;
-    renderNews((bx && bx.news) || []);
     var dh = $("dhead");
     dh.className = "dhead";
     dh.replaceChildren(
@@ -3088,6 +3184,7 @@ header { view-transition-name: masthead; }
       hsDraw = { pts: pts0, marks: hs.marks };
     }
     var runs = bb ? findRuns(bb.series) : [];
+    renderNews(gameNews(l, ev, bx, hsDraw, away, home));
     if (hsDraw) hsDraw = Object.assign({}, hsDraw, { espn: bx && bx.espn && bx.espn.length > 1 ? bx.espn : null, runs: runs });
     var chosen = sel.i >= 0 && plays[sel.i] ? plays[sel.i] : null;
     var selPt = chosen ? { p: playProgress(l, chosen), m: chosen.h - chosen.a, side: chosen.side } : null;

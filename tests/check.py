@@ -217,6 +217,8 @@ async def main():
             txt = await pg.evaluate("(document.querySelector('.fsit') || {}).textContent || ''")
             check("CHI ball" in txt and "3rd and 7" in txt, "the field says whose ball and the down (%r)" % txt)
             hl = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), b = document.querySelector('.detail > .back').getBoundingClientRect(), r = e.getBoundingClientRect(); return [e.querySelector('.run').textContent, Math.round(r.left), Math.round(innerWidth - r.right), Math.round(b.left), Math.round(innerHeight - b.bottom), getComputedStyle(document.querySelector('.detail > .back')).position] })()""")
+            check("Live" in hl[0] and "Lions lead Bears 20–17 in the 3rd" in hl[0], "a live game gets its own headline from the score (%r)" % hl[0])
+            check("Bears face 3rd and 7 at the DET 34" in hl[0], "and one from the down and distance (%r)" % hl[0])
             check("Lions lean" in hl[0] and "Bears rookie" in hl[0] and "Highlights" not in hl[0] and "Steelers" not in hl[0], "the game's own headlines run across the top, no highlights or other teams (%r)" % hl[0])
             check(hl[1] <= 40 and hl[2] <= 40, "on a phone the headlines run the full width (%r)" % hl[1:3])
             check(hl[5] == "fixed" and 10 <= hl[3] <= 24 and 8 <= hl[4] <= 30, "on a phone the back button sits bottom left, under the thumb (%r)" % hl[3:])
