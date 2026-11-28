@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1843">
+<meta name="agate-version" content="2026.11.27-1844">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -2312,7 +2312,7 @@ header { view-transition-name: masthead; }
     var last = vals[vals.length - 1], hi = Math.max.apply(null, vals), lo = Math.min.apply(null, vals);
     var avg = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
     var fmt = function (v) { return Math.abs(v) >= 100 || v === Math.round(v) ? String(Math.round(v)) : v.toFixed(1); };
-    requestAnimationFrame(function () {
+    schedDraw(function () {
       var sc = sizeCanvas(c); if (!sc) return;
       var g = sc.g, W = sc.w, H = sc.h, p = pal(), pad = 4, span = hi - lo || 1;
       var X = function (i) { return pad + i / (series.length - 1) * (W - pad * 2); }, Y = function (v) { return H - pad - (v - lo) / span * (H - pad * 2); };
@@ -2414,7 +2414,7 @@ header { view-transition-name: masthead; }
     var c = h("canvas", { class: "strip", "aria-label": "Season, game by game: wins above the line, losses below, by margin" });
     var done = games.filter(function (g) { return g.state === "post" && g.us != null && g.them != null; });
     var hi = Math.max.apply(null, [1].concat(done.map(function (g) { return Math.abs(g.us - g.them); })));
-    requestAnimationFrame(function () {
+    schedDraw(function () {
       var sc = sizeCanvas(c); if (!sc) return;
       var g = sc.g, W = sc.w, H = sc.h, p = pal(), n = games.length || 1, step = W / n, bw = Math.max(2, Math.min(14, step * 0.62)), mid = Math.round(H / 2) + 0.5;
       g.strokeStyle = p.rule; g.lineWidth = 1; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
@@ -2495,7 +2495,7 @@ header { view-transition-name: masthead; }
     var c = h("canvas", { class: "fin", "aria-label": "Finishing position each race; first place at the top" });
     var n = races.length, field = 22;
     races.forEach(function (r) { var x = r.Results[0]; field = Math.max(field, +x.grid || 0, +x.position || 0); });
-    requestAnimationFrame(function () {
+    schedDraw(function () {
       var sc = sizeCanvas(c); if (!sc) return;
       var g = sc.g, W = sc.w, H = sc.h, p = pal(), padL = 26, padR = 8, padT = 8, padB = 18;
       var X = function (i) { return padL + (n === 1 ? 0.5 : i / (n - 1)) * (W - padL - padR); }, Y = function (pos) { return padT + (pos - 1) / (field - 1) * (H - padT - padB); };
