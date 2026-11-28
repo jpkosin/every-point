@@ -1,5 +1,7 @@
 name: probe
 on: push
+permissions:
+  contents: write
 jobs:
   p:
     runs-on: ubuntu-latest
@@ -10,5 +12,7 @@ jobs:
           for p in "ofl/rokkitt/Rokkitt%5Bwght%5D.ttf" "ofl/zillaslab/ZillaSlab-Medium.ttf" "ofl/zillaslab/ZillaSlab-Bold.ttf" "ofl/zillaslab/ZillaSlab-Regular.ttf" "apache/robotoslab/RobotoSlab%5Bwght%5D.ttf" "ofl/arvo/Arvo-Regular.ttf" "ofl/arvo/Arvo-Bold.ttf" "ofl/sourceserif4/SourceSerif4%5Bopsz,wght%5D.ttf" "ofl/newsreader/Newsreader%5Bopsz,wght%5D.ttf" "ofl/bitter/Bitter%5Bwght%5D.ttf" "ofl/graduate/Graduate-Regular.ttf" "ofl/alfaslabone/AlfaSlabOne-Regular.ttf" "ofl/oldstandardtt/OldStandardTT-Bold.ttf" "ofl/librecaslontext/LibreCaslonText%5Bwght%5D.ttf" "ofl/fraunces/Fraunces%5BSOFT,WONK,opsz,wght%5D.ttf"; do
             curl -sfL -O "https://raw.githubusercontent.com/google/fonts/main/$p" || echo "miss $p"
           done; ls -la
-      - uses: actions/upload-artifact@v4
-        with: { name: fonts, path: f }
+      - shell: bash
+        run: |
+          cd f && git init -q && git checkout -q -b font-candidates && git add . && git -c user.name=bot -c user.email=bot@x commit -qm fonts
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" font-candidates
