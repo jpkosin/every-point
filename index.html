@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1842">
+<meta name="agate-version" content="2026.11.27-1843">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -2044,8 +2044,8 @@ header { view-transition-name: masthead; }
     var inGame = !!view;
     $("leagues").hidden = inGame; $("board").hidden = inGame; $("days").hidden = inGame;
     if (!inGame) renderDays();
-    if (inGame) { renderDetail(true); drawRug(); return; }
-    renderDetail(false);
+    if (inGame) { renderDetail(true); flushDraws(); drawRug(); return; }
+    renderDetail(false); flushDraws();
     var main = $("games");
     main.replaceChildren();
     pending = [];
@@ -2159,8 +2159,8 @@ header { view-transition-name: masthead; }
     if (!view || view.player || view.team || view.stand) return;
     var l = view.l, id = view.id, key = l.key + ":" + id, ev = findEvent(l, id);
     clearTimeout(boxTimer);
-    if (l.race) { renderDetail(true); return; }
-    box.loading = true; renderDetail(false);
+    if (l.race) { renderDetail(true); flushDraws(); return; }
+    box.loading = true; renderDetail(false); flushDraws();
     try {
       var bd = await getBox(l, id);
       if (box.key !== key) return;
@@ -2170,7 +2170,7 @@ header { view-transition-name: masthead; }
       box.error = String((e && e.message) || e).replace(/^[A-Z]+:\s*/, "");
     }
     box.loading = false;
-    renderDetail(true);
+    renderDetail(true); flushDraws();
     var state = (box.data && box.data.state) || (ev && ev.state);
     if (view && box.key === key && state === "in") boxTimer = setTimeout(loadBox, 10000);
   }
@@ -2286,7 +2286,7 @@ header { view-transition-name: masthead; }
     var ok = function (i) { return got[i].status === "fulfilled" ? got[i].value : null; };
     pl.bio = (ok(0) || {}).athlete || null; pl.ov = ok(1); pl.gl = ok(2); pl.loading = false;
     if (!pl.bio) pl.err = "Couldn't load this player.";
-    renderDetail(true);
+    renderDetail(true); flushDraws();
   }
   function gameLog(gl) {
     if (!gl || !gl.labels) return null;
@@ -2379,7 +2379,7 @@ header { view-transition-name: masthead; }
     var got = await Promise.allSettled([getJSON(sb), l.sport === "soccer" ? getJSON(sb + "?fixture=true") : Promise.resolve(null)]);
     if (tm.key !== key) return;
     var a = got[0].status === "fulfilled" ? got[0].value : null, b = got[1].status === "fulfilled" ? got[1].value : null;
-    if (!a || !a.team) { tm.loading = false; tm.err = "Couldn't load this team."; renderDetail(true); return; }
+    if (!a || !a.team) { tm.loading = false; tm.err = "Couldn't load this team."; renderDetail(true); flushDraws(); return; }
     tm.team = a.team;
     var seen = {}, games = [];
     (a.events || []).concat((b && b.events) || []).forEach(function (e) {
@@ -2406,7 +2406,7 @@ header { view-transition-name: masthead; }
     } catch (e) { tm.stand = null; }
     if (tm.key !== key) return;
     tm.loading = false; tm.at = Date.now();
-    renderDetail(true);
+    renderDetail(true); flushDraws();
   }
   // The season in one line: each finished game a bar from the rule, up for a
   // win and down for a loss, as long as the margin; games to come are ticks.
@@ -2469,7 +2469,7 @@ header { view-transition-name: masthead; }
       sd.groups = out; sd.title = d.name || "";
     } catch (e) { if (sd.key !== key) return; sd.err = "Couldn't load the standings."; }
     sd.loading = false; sd.at = Date.now();
-    renderDetail(true);
+    renderDetail(true); flushDraws();
   }
   // ---- F1 driver pages (Jolpica) ------------------------------------------
   var drv = { key: "" };
@@ -2487,7 +2487,7 @@ header { view-transition-name: masthead; }
     drv.info = (((((v(2) || {}).MRData || {}).DriverTable || {}).Drivers) || [])[0] || (drv.races[0] && drv.races[0].Results[0].Driver) || null;
     drv.loading = false; drv.at = Date.now();
     if (!drv.info) drv.err = "Couldn't load this driver.";
-    renderDetail(true);
+    renderDetail(true); flushDraws();
   }
   // The season, race by race: where they started (faint) and finished (ink),
   // first place at the top; a retirement drops to a cross on the floor.
@@ -2623,8 +2623,8 @@ header { view-transition-name: masthead; }
       if (l.up) when = pl.cd || when;
       var t = pl.side === "home" ? home : pl.side === "away" ? away : null, col = tc && pl.side ? tc[pl.side] : "transparent";
       var tr = h("tr", { class: "pl" + (i === sel.i ? " on" : ""), tabindex: "0", role: "button", "aria-pressed": i === sel.i ? "true" : "false",
-        onclick: function () { sel.i = sel.i === i ? -1 : i; renderDetail(false); },
-        onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sel.i = sel.i === i ? -1 : i; renderDetail(false); } } }, [
+        onclick: function () { sel.i = sel.i === i ? -1 : i; renderDetail(false); flushDraws(); },
+        onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sel.i = sel.i === i ? -1 : i; renderDetail(false); flushDraws(); } } }, [
         h("td", { class: "w", text: when }),
         h("td", { class: "t" }, [h("span", { class: "sw", style: "background:" + col }), (t && (t.abbr || t.name)) || ""]),
         h("td", { class: "x", text: pl.text }),
