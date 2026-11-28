@@ -132,7 +132,11 @@ async def main():
             check(not errs, "game with scoring plays opens without errors")
             n = await pg.evaluate("document.querySelectorAll('table.plays-t tr.pl').length")
             check(n == 4, "scoring plays listed (%d)" % n)
-            big = await pg.evaluate("(() => { const c = document.querySelector('#driver canvas'); if (!c) return false; const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })()")
+            try:   # slower machines take a moment to load the game
+                await pg.wait_for_function("(() => { const c = document.querySelector('#driver canvas'); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })()", timeout=8000)
+                big = True
+            except Exception:
+                big = False
             check(big, "the big margin chart is drawn")
             await pg.close()
             for hsh, sel, what in [("#team-nfl-8", ".tsched tr", "team page"), ("#standings-nfl", ".tstand tr", "league standings"), ("#driver-hadjar", "canvas.fin", "F1 driver page")]:
