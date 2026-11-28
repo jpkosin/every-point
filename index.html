@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2132">
+<meta name="agate-version" content="2026.11.27-2200">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -293,9 +293,11 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 .dnews.moving:active .track { animation-play-state: paused; }
 @keyframes ticker { to { transform: translateX(-50%); } }
 .dnews .run { display: flex; white-space: nowrap; }
-.dnews .hl { font-family: var(--data); font-weight: 700; font-size: 21px; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink);
-  font-variation-settings: "opsz" 48; padding-right: 1.2em; }
-.dnews .hl::after { content: "\25C6"; font-size: 0.45em; vertical-align: 0.35em; color: var(--gray); padding-left: 1.2em; }
+.dnews .hl { font-family: var(--data); font-weight: 560; font-size: 21px; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink);
+  font-variation-settings: "opsz" 48; }
+/* the separator: a drawn diamond with the same space either side */
+.dnews .hl::after { content: ""; display: inline-block; width: 6px; height: 6px; background: var(--gray); transform: rotate(45deg);
+  margin: 0 22px; vertical-align: 0.3em; }
 .dnews:not(.moving) .hl { white-space: normal; }
 .dnews:not(.moving) .hl:last-child::after { content: none; }
 .dnews .hl a { color: inherit; text-decoration: none; }
@@ -575,7 +577,6 @@ header { view-transition-name: masthead; }
       <button class="link" id="findb" type="button" title="Find a team (or pull down from the top)">Find</button>
       <button class="link" id="alerts" type="button" hidden>Alerts</button>
       <button class="link" id="theme" type="button">◐ <span id="theme-v">Auto</span></button>
-      <button class="link" id="sound" type="button" aria-pressed="false">Sound off</button>
     </div>
   </header>
   <div class="banner" id="banner" hidden></div>
@@ -1178,7 +1179,8 @@ header { view-transition-name: masthead; }
       try { new Notification(lines[0], { body: lines.slice(1).join("\n"), tag: lines[0] }); } catch (e) {}
     });
   }
-  // A soft two-note bell.
+  // A soft two-note bell. (The sound switch is gone; this stays silent
+  // unless a sound setting comes back.)
   function chime(times) {
     if (!prefs.sound || !audio) return;
     for (var i = 0; i < times; i++) [784, 1175].forEach(function (f, j) {
@@ -3254,12 +3256,6 @@ header { view-transition-name: masthead; }
   pressable($("pin"), function (e) { var p = prefs.pin, l = p && BY_KEY[p.l]; if (!l) return; var ab = e && e.target && e.target.closest && e.target.closest(".ab[data-team]");
     if (ab) { backTo = location.hash; location.hash = "team-" + l.key + "-" + ab.getAttribute("data-team"); } else openGame(l, { id: p.id }); },
     function () { unpin(); });
-  $("sound").addEventListener("click", function () {
-    prefs.sound = !prefs.sound; savePrefs();
-    if (prefs.sound && !audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
-    if (prefs.sound && audio && audio.state === "suspended") audio.resume();
-    soundButton(); if (prefs.sound) chime(1);
-  });
   var STANDALONE = !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
   if (STANDALONE) document.documentElement.classList.add("standalone");
   // iOS colours the strip under the clock from the page background, so swap
@@ -3467,8 +3463,6 @@ header { view-transition-name: masthead; }
     prefs.theme = ({ auto: "light", light: "dark", dark: "auto" })[prefs.theme] || "light"; savePrefs(); applyTheme();
   });
   applyTheme();
-  function soundButton() { var s = $("sound"); s.setAttribute("aria-pressed", String(prefs.sound)); s.textContent = prefs.sound ? "Sound on" : "Sound off"; }
-  soundButton();
   $("alerts").addEventListener("click", function () {
     if (!("Notification" in window)) return;
     Notification.requestPermission().then(renderAlertsButton).catch(function () {});
