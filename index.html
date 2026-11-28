@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ScoreCard</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-1810">
+<meta name="agate-version" content="2026.11.27-1834">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ScoreCard">
@@ -17,7 +17,7 @@
 <link rel="icon" href="sc-192.png?v=f" sizes="192x192">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:opsz,wght@8..60,400..700&display=swap">
 <style>
 /* VOICE   Quiet and exact, a printed page of record: Tufte's books.
    IDEA    The newspaper agate page: every game a line of type with a sparkline.
@@ -40,7 +40,20 @@
   --band-blue: #8fb5e2;
   --band-gray: #a19c8f;
   --serif: "EB Garamond", "Palatino", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --data: "Source Serif 4", "Source Serif Pro", Georgia, var(--serif);
 }
+/* Two faces, one rule: the figures and the names (what the page reports) are
+   set in Source Serif 4, sturdy and clear at a glance; the words about them
+   (captions, notes, labels, everything in italic) stay in EB Garamond. */
+header h1, .livec b, .leagues .pick, .days .lbl, .days input,
+table.agate td.tm, table.agate td.sc, table.agate td.st, table.agate td.when, table.agate td.mu, table.agate th.lg,
+:is(header, .pinbar) .pin .ab, :is(header, .pinbar) .pin .n,
+.dteam .nm, .dteam .big, .dmid .live, .dmid .wp b,
+table.stats td, table.stats th, table.plays-t td.t, table.plays-t td.s, .night .v b, .feed li b,
+.phead .jn, .phead .pn, .thead .pn, .dsum, .find li > span:nth-child(2), .find input, .tleaders a, .standings td, .f1 .nm,
+.big, .h2n, h2 > .c { font-family: var(--data); }
+:is(table.agate, .dhead, table.stats, .pin, .night, .standings) :is(em, i, .rec, .cap) ,
+table.agate th.lg span, table.agate td.st.live em { font-family: var(--serif); }
 :root[data-theme=light] { color-scheme: light; }
 :root[data-theme=dark] { color-scheme: dark; }
 * { box-sizing: border-box; min-width: 0; }
@@ -793,7 +806,7 @@ header { view-transition-name: masthead; }
     return { home: css(hh), away: css(aw), team: true };
   }
   new MutationObserver(function () { P = null; render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  var SERIF = '"EB Garamond", Palatino, Georgia, serif';
+  var SERIF = '"EB Garamond", Palatino, Georgia, serif', DATA = '"Source Serif 4", Georgia, serif';
 
   // Where a game is, 0 at the start to 1 at the end of regulation.
   function progress(l, ev) {
@@ -1392,7 +1405,7 @@ header { view-transition-name: masthead; }
       g.strokeStyle = c.rule; g.beginPath(); g.moveTo(x, big ? pad.t : mid - 2); g.lineTo(x, big ? H - pad.b + 4 : mid + 2); g.stroke();
     }
     if (big) {
-      g.font = "13px " + SERIF; g.fillStyle = c.gray; g.textAlign = "center"; g.textBaseline = "top";
+      g.font = "13px " + DATA; g.fillStyle = c.gray; g.textAlign = "center"; g.textBaseline = "top";
       for (var q = 1; q <= Math.ceil(span * l.n - 1e-6); q++) {
         var lab = q > l.n ? "OT" + (q - l.n > 1 ? q - l.n : "") : (l.pl || "") + q;
         g.fillText(lab, (X((q - 1) / l.n) + X(Math.min(q / l.n, span))) / 2, H - pad.b + 7);
@@ -1445,7 +1458,7 @@ header { view-transition-name: masthead; }
       g.beginPath(); g.arc(sx, sy, 5, 0, Math.PI * 2); g.stroke();
     }
     if (big && s2) {
-      g.font = "15px " + SERIF; g.textAlign = "left"; g.textBaseline = "middle";
+      g.font = "15px " + DATA; g.textAlign = "left"; g.textBaseline = "middle";
       g.fillStyle = prevM > 0 ? c.home : prevM < 0 ? c.away : c.gray;
       g.fillText(prevM === 0 ? "Tied" : (prevM > 0 ? s2.home.abbr : s2.away.abbr) + " +" + Math.abs(prevM), endX + 8, endY);
     }
@@ -2478,7 +2491,7 @@ header { view-transition-name: masthead; }
       var sc = sizeCanvas(c); if (!sc) return;
       var g = sc.g, W = sc.w, H = sc.h, p = pal(), padL = 26, padR = 8, padT = 8, padB = 18;
       var X = function (i) { return padL + (n === 1 ? 0.5 : i / (n - 1)) * (W - padL - padR); }, Y = function (pos) { return padT + (pos - 1) / (field - 1) * (H - padT - padB); };
-      g.font = "12px " + SERIF; g.fillStyle = p.gray; g.textAlign = "right"; g.textBaseline = "middle";
+      g.font = "12px " + DATA; g.fillStyle = p.gray; g.textAlign = "right"; g.textBaseline = "middle";
       [1, 10, 20].forEach(function (pp) { if (pp > field) return; g.fillText("P" + pp, padL - 6, Y(pp)); g.strokeStyle = alpha(p.rule, 0.6); g.lineWidth = 1; g.beginPath(); g.moveTo(padL, Math.round(Y(pp)) + 0.5); g.lineTo(W - padR, Math.round(Y(pp)) + 0.5); g.stroke(); });
       var line = function (get, style, w) {
         g.strokeStyle = style; g.lineWidth = w; g.beginPath(); var on = false;
