@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Margin Line</title>
 <meta name="theme-color" content="#fffff8">
-<meta name="agate-version" content="2026.11.27-2216">
+<meta name="agate-version" content="2026.11.28-0907">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Margin Line">
@@ -304,10 +304,15 @@ td.mu .rec { font-weight: 400; color: var(--gray); font-size: 14px; margin-left:
 @media (max-width: 700px), (pointer: coarse) {
   .detail:has(> .dnews) > .dnews { grid-column: 1 / -1; }
 }
-/* one-handed: on phones the back button lives bottom left, under the thumb */
+/* one-handed: on phones the back button lives bottom left, under the thumb.
+   It's its own element at the top of the page, so nothing it sits inside
+   can drag it along when the page scrolls. */
+.backfab { display: none; }
 @media (max-width: 700px), (pointer: coarse) {
-  .detail .back, .back { position: fixed; top: auto !important; left: max(16px, env(safe-area-inset-left, 0px));
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 30; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
+  .detail .back { display: none; }
+  .backfab:not([hidden]) { display: block; position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+    margin: 0; padding: 10px 16px; border: 0; border-radius: 3px; background: var(--ink); color: var(--bg); font: inherit; font-size: 17px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); -webkit-tap-highlight-color: transparent; }
   .detail { padding-bottom: 76px; }
 }
 .dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 20px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
@@ -562,6 +567,7 @@ header { view-transition-name: masthead; }
 </head>
 <body>
 <div id="pal"><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i><i data-k="bgray" style="color:var(--band-gray)"></i></div>
+<button class="backfab" id="backfab" type="button" hidden>← All games</button>
 <div class="pinbar" id="pinbar"><div class="in"><div class="pin" id="pinc" role="button" tabindex="0"></div><canvas class="mini" id="pinm" aria-hidden="true"></canvas><div id="palb" hidden><i data-k="ink" style="color:var(--ink)"></i><i data-k="gray" style="color:var(--gray)"></i><i data-k="rule" style="color:var(--rule)"></i><i data-k="home" style="color:var(--home)"></i><i data-k="away" style="color:var(--away)"></i><i data-k="bg" style="color:var(--bg)"></i><i data-k="bred" style="color:var(--band-red)"></i><i data-k="bblue" style="color:var(--band-blue)"></i><i data-k="bink" style="color:var(--band-ink)"></i><i data-k="bgray" style="color:var(--band-gray)"></i></div></div></div>
 <div class="wrap">
   <header>
@@ -2214,8 +2220,10 @@ header { view-transition-name: masthead; }
       var c = en.target, k = c.dataset.k;
       if (!c.isConnected) { io.unobserve(c); return; }
       if (en.isIntersecting) {
-        if (!seenAt.has(k)) seenAt.set(k, now + Math.min(n++, 12) * 45);
+        if (!seenAt.has(k)) seenAt.set(k, now < returningUntil ? now - 1e7 : now + Math.min(n++, 12) * 45);
         showReveal(c, k);
+      } else if ((view || now < returningUntil) && c.closest("#board")) {
+        // the scores hid behind a game page: not scrolled away, so remember them
       } else {
         // gone off screen: next time it comes back, it draws on again
         seenAt.delete(k); c.classList.remove("reveal"); c.classList.add("unseen");
@@ -2229,9 +2237,20 @@ header { view-transition-name: masthead; }
     c.classList.remove("unseen");
     if (now < t0 + (c._rvMs || RV_MS)) { c.classList.add("reveal"); c.style.animationDelay = (t0 - now) + "ms"; c.style.setProperty("--rvd", (t0 - now) + "ms"); } else c.classList.remove("reveal");
   }
+  var returningUntil = 0;
+  // Back on the scores: every line on screen is shown whole at once; they
+  // were drawn in already, and the page shouldn't flash blank.
+  function showBoardDrawn() {
+    var vh = window.innerHeight, old = Date.now() - 1e7;
+    document.querySelectorAll("#board canvas[data-k]").forEach(function (c) {
+      var r = c.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < vh) { seenAt.set(c.dataset.k, old); showReveal(c, c.dataset.k); }
+    });
+  }
   function revealCanvas(c, k, mode) {
     if (!io || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     c.dataset.k = k;
+    if (Date.now() < returningUntil && !seenAt.has(k)) seenAt.set(k, Date.now() - 1e7);
     if (mode) c.classList.add("rv", "rv-" + mode);
     if (seenAt.has(k)) showReveal(c, k); else c.classList.add("unseen");
     io.observe(c);
@@ -2563,8 +2582,13 @@ header { view-transition-name: masthead; }
       loadMarkets();
     } else clearTimeout(mkTimer);
     $("detail").replaceChildren();
+    if (!view && was) returningUntil = Date.now() + 2000;   // back to the scores: they're already drawn, so no draw-in
     render();
-    if (!view && was) { window.scrollTo(0, scrollBack); requestAnimationFrame(function () { window.scrollTo(0, scrollBack); }); }
+    if (!view && was) {
+      window.scrollTo(0, scrollBack);
+      requestAnimationFrame(function () { window.scrollTo(0, scrollBack); showBoardDrawn(); });
+      showBoardDrawn();
+    }
   }
   function findEvent(l, id) { return ((data[l.key] || {}).events || []).filter(function (e) { return String(e.id) === String(id); })[0] || null; }
   async function loadBox() {
@@ -3253,7 +3277,36 @@ header { view-transition-name: masthead; }
   // Each visit to a game page draws its charts in afresh.
   var detailSeq = 0, detailHash = "";
   function rvKey(name) { return "d" + detailSeq + ":" + name; }
+  // The phone's back button mirrors the page's own: same words, same action.
+  (function () {
+    var fab = $("backfab"), det = $("detail");
+    function sync() {
+      var b = det.hidden ? null : det.querySelector(".back");
+      fab.hidden = !b; if (b && fab.textContent !== b.textContent) fab.textContent = b.textContent;
+    }
+    fab.addEventListener("click", function () { var b = det.querySelector(".back"); if (b) b.click(); });
+    new MutationObserver(sync).observe(det, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    sync();
+  })();
+  // Sections of a game page that fill in after it opens (headlines, the box
+  // score, timeouts) grow into place instead of shoving the page down.
   function renderDetail(tablesToo) {
+    var det = $("detail"), seq0 = detailSeq, before = {};
+    if (!det.hidden) Array.prototype.forEach.call(det.children, function (c) { if (c.id) before[c.id] = c.getBoundingClientRect().height; });
+    renderDetailNow(tablesToo);
+    if (det.hidden || detailSeq !== seq0 || moving || reduceMotion || !det.animate) return;
+    Array.prototype.forEach.call(det.children, function (c) {
+      if (!c.id || before[c.id] == null) return;
+      var h0 = before[c.id], h1 = c.getBoundingClientRect().height;
+      if (Math.abs(h1 - h0) < 4) return;
+      (c.getAnimations ? c.getAnimations() : []).forEach(function (a) { if (a.id === "grow") a.cancel(); });
+      c.style.overflow = "hidden";
+      var a = c.animate([{ height: h0 + "px", opacity: h0 ? 1 : 0 }, { height: h1 + "px", opacity: 1 }], { duration: 420, easing: "cubic-bezier(.3, .6, .2, 1)" });
+      a.id = "grow";
+      a.onfinish = a.oncancel = function () { c.style.overflow = ""; };
+    });
+  }
+  function renderDetailNow(tablesToo) {
     if (moving) { dirty = true; return; }
     if (location.hash !== detailHash) { detailHash = location.hash; detailSeq++; }
     var d = $("detail");

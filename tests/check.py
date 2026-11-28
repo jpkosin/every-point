@@ -203,12 +203,15 @@ async def main():
                 mf = await pg.evaluate("""(() => { const c = document.querySelector('canvas.mfield'); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; })()""")
                 check(mf, "live football shows its little field under the clock")
                 await pg.close()
+            import re as _re
+            _css = _re.sub(r'"[^"\n]*"', '', open(os.path.join(ROOT, "index.html")).read().split("<style>")[1].split("</style>")[0])
+            check(_css.count("{") == _css.count("}"), "the stylesheet's braces balance (a stray one silently drops every rule after it)")
             print("Game page, phone")
             pg, errs = await page(b, 393, "#game-ncaam-502", True)
             check(not errs, "no script errors" + (": " + errs[0] if errs else ""))
             o = await pg.evaluate("""(() => { const a = document.querySelector('.dteam.away .nm').getBoundingClientRect(), m = document.querySelector('.dmid').getBoundingClientRect(), h = document.querySelector('.dteam.home .nm').getBoundingClientRect();
                 return [a.right, m.left, m.right, h.left] })()""")
-            check(o[0] <= o[1] + 1 and o[2] <= o[3] + 1, "long team names never run into the clock")
+            check(o[0] <= o[1] + 1 and o[2] <= o[3] + 1, "long team names never run into the clock (%r)" % o)
             await pg.close()
             pg, errs = await page(b, 393, "#game-nfl-402", True)
             await pg.wait_for_timeout(800)
@@ -234,10 +237,12 @@ async def main():
                 check(ok, what)
             txt = await pg.evaluate("(document.querySelector('.fsit') || {}).textContent || ''")
             check("CHI ball" in txt and "3rd and 7" in txt, "the field says whose ball and the down (%r)" % txt)
-            hl = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), b = document.querySelector('.detail > .back').getBoundingClientRect(), r = e.getBoundingClientRect(); return [e.querySelector('.run').textContent, Math.round(r.left), Math.round(innerWidth - r.right), Math.round(b.left), Math.round(innerHeight - b.bottom), getComputedStyle(document.querySelector('.detail > .back')).position] })()""")
+            hl = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), b = document.querySelector('#backfab').getBoundingClientRect(), r = e.getBoundingClientRect(); return [e.querySelector('.run').textContent, Math.round(r.left), Math.round(innerWidth - r.right), Math.round(b.left), Math.round(innerHeight - b.bottom), getComputedStyle(document.querySelector('#backfab')).position] })()""")
             check("Live" in hl[0] and "Lions lead Bears 20–17 in the 3rd" in hl[0], "a live game gets its own headline from the score (%r)" % hl[0])
             check("Bears face 3rd and 7 at the DET 34" in hl[0], "and one from the down and distance (%r)" % hl[0])
             check("Lions lean" in hl[0] and "Bears rookie" in hl[0] and "Highlights" not in hl[0] and "Steelers" not in hl[0], "the game's own headlines run across the top, no highlights or other teams (%r)" % hl[0])
+            bk = await pg.evaluate("""(async () => { const b = () => document.querySelector('#backfab').getBoundingClientRect(); const a = b().bottom; scrollTo(0, 700); await new Promise(r => setTimeout(r, 300)); const c = b().bottom; scrollTo(0, 0); return [Math.round(innerHeight - a), Math.round(innerHeight - c), scrollY] })()""")
+            check(bk[0] == bk[1], "the back button stays put at the bottom while the page scrolls (%r)" % bk)
             dm = await pg.evaluate("""(() => { const e = document.querySelector('#dnews'), hl = e.querySelector('.hl'), r = e.getBoundingClientRect(), cs = getComputedStyle(e), a = getComputedStyle(hl, '::after'), h = hl.getBoundingClientRect();
               const top = r.top + parseFloat(cs.borderTopWidth), bot = r.bottom - parseFloat(cs.borderBottomWidth), mid = (top + bot) / 2;
               return [Math.round(Math.abs((h.top + h.bottom) / 2 - mid) * 10) / 10, a.alignSelf, a.marginLeft, a.marginRight, getComputedStyle(e.querySelector('.win')).maskImage || 'none'] })()""")
@@ -268,6 +273,11 @@ async def main():
             px = await pg.evaluate("""(() => { const c = document.querySelector('canvas.drives'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n })()""")
             check(px > 500, "the drives have run their course (%d px)" % px)
             check(blank < mid < px * 0.95, "the drives run in rather than appearing at once (%d, %d, then %d px)" % (blank, mid, px))
+            # going back: the scores come back already drawn, not blank
+            await pg.evaluate("document.querySelector('#backfab').click()"); await pg.wait_for_timeout(700)
+            un = await pg.evaluate("[document.querySelectorAll('td.sp canvas.unseen').length, document.querySelectorAll('td.sp canvas').length, !!document.querySelector('#backfab:not([hidden])')]")
+            check(un[0] == 0 and un[1] > 0, "back on the scores, the lines are there at once (%d of %d still hidden)" % (un[0], un[1]))
+            check(not un[2], "the back button leaves with the game page")
             await pg.close()
             print("Game page, desktop")
             pg, errs = await page(b, 1280, "#game-nfl-401")
